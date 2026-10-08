@@ -1,8 +1,13 @@
 import { create } from 'zustand';
 
+// index.html applies the saved theme before first paint; this mirrors the same rule.
 const getInitialTheme = () => {
-  const stored = localStorage.getItem('sagewell-theme');
-  if (stored === 'dark' || stored === 'light') return stored;
+  try {
+    const stored = localStorage.getItem('sagewell-theme');
+    if (stored === 'dark' || stored === 'light') return stored;
+  } catch {
+    // storage unavailable (private mode); fall through to the OS preference
+  }
   if (window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
   return 'light';
 };

@@ -13,9 +13,10 @@ const Toaster = ({
       position="bottom-right"
       toastOptions={{
         style: {
-          fontFamily: 'var(--font-family)',
-          fontSize: 'var(--font-size-sm)',
-          borderRadius: '2px',
+          fontFamily: 'var(--font-sans)',
+          fontSize: '13px',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--sh-sm)',
         },
       }}
       style={
