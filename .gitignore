@@ -29,3 +29,6 @@ logs/
 .agents/
 .gemini/
 .impeccable/
+
+# Scraped design reference material (third-party content; never commit)
+design-reference/
