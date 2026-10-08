@@ -2,7 +2,9 @@ import { Router } from 'express';
 import { isLoggedIn } from '../middlewares/auth.middlewares.js';
 import { chatLimiter } from '../middlewares/rateLimit.middlewares.js';
 import { validate } from '../middlewares/validate.middlewares.js';
-import { createChatSchema, createMessageSchema, renameChatSchema } from '../validators/chat.validators.js';
+import CreateChatDto from '../dto/chat/create-chat.dto.js';
+import CreateMessageDto from '../dto/chat/create-message.dto.js';
+import RenameChatDto from '../dto/chat/rename-chat.dto.js';
 import {
   createChat,
   listChats,
@@ -21,7 +23,7 @@ const router = Router();
 
 // ── Collection-level routes (no params) ──────────────────────────────────────
 // Create a new chat with selected sources
-router.post("/", isLoggedIn, validate(createChatSchema), createChat);
+router.post("/", isLoggedIn, validate(CreateChatDto), createChat);
 
 // List all chats for the authenticated user
 router.get("/", isLoggedIn, listChats);
@@ -43,14 +45,14 @@ router.patch("/:chatId/pin", isLoggedIn, togglePinChat);
 router.post("/:chatId/feedback", isLoggedIn, setMessageFeedback);
 
 // Send a message and stream response (SSE)
-router.post("/:chatId/message", isLoggedIn, chatLimiter, validate(createMessageSchema), createMessage);
+router.post("/:chatId/message", isLoggedIn, chatLimiter, validate(CreateMessageDto), createMessage);
 
 // ── Generic chat-level routes ────────────────────────────────────────────────
 // Fetch a single chat with full message history
 router.get("/:chatId", isLoggedIn, getChat);
 
 // Rename a chat
-router.patch("/:chatId", isLoggedIn, validate(renameChatSchema), renameChat);
+router.patch("/:chatId", isLoggedIn, validate(RenameChatDto), renameChat);
 
 // Delete a chat
 router.delete("/:chatId", isLoggedIn, deleteChat);
