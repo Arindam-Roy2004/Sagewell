@@ -1,239 +1,156 @@
-import { useState } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Loader2, Sun, Moon } from "lucide-react";
-import { useAuthStore } from '../stores/authStore';
-import { useThemeStore } from '../stores/themeStore';
-import { useNavigate } from 'react-router-dom';
-import GoogleSignInButton from './GoogleSignInButton';
+// Sign-in page. Google is the only sign-in method; the same button creates new accounts.
+// Uses the landing page's visual system (railed column, section rules, coral accent).
+import "@fontsource-variable/inter/opsz.css";
+import "@fontsource/dm-mono/400.css";
+import "@fontsource/dm-mono/500.css";
+
+import { useEffect, useRef } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, KeyRound, Lock, Github, Loader2 } from "lucide-react";
+import { useAuthStore } from "../stores/authStore";
+import GoogleSignInButton from "./GoogleSignInButton";
+import ThemeToggle from "./ThemeToggle";
+import LeafIcon from "./icons/leaf-icon";
+import { Rails, Rule, Reveal } from "../pages/landing/primitives";
+import { REPO_URL } from "../pages/landing/content";
+
+const GOOGLE_CONFIGURED = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
+
+const FACTS = [
+  { icon: KeyRound, title: "No password to remember", text: "Your Google account is your key. Nothing extra to create or reset." },
+  { icon: Lock, title: "Private notebooks", text: "Your sources and dialogues are visible only to your account." },
+  { icon: Github, title: "Open source", text: "See exactly how sign-in and your data are handled on GitHub." },
+];
+
+function Logo() {
+  const iconRef = useRef(null);
+  return (
+    <Link
+      to="/"
+      className="flex items-center gap-2 text-lp-heading"
+      onMouseEnter={() => iconRef.current?.startAnimation()}
+      onMouseLeave={() => iconRef.current?.stopAnimation()}
+      aria-label="Sagewell home"
+    >
+      <LeafIcon ref={iconRef} size={22} strokeWidth={2.4} className="text-brand" />
+      <span className="font-display text-2xl font-medium tracking-tight">Sagewell</span>
+    </Link>
+  );
+}
 
 export default function AuthForm() {
-  const { login, register, googleLogin, isLoading } = useAuthStore();
-  const { theme, toggleTheme } = useThemeStore();
+  const { googleLogin, isLoading } = useAuthStore();
   const navigate = useNavigate();
-  const [mode, setMode] = useState('login');
-  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
-  const [registerForm, setRegisterForm] = useState({ name: '', email: '', password: '' });
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    const result = await login(loginForm);
-    if (result.success) {
-      navigate('/workspace', { replace: true });
-    }
-  };
-
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    const result = await register(registerForm);
-    if (result.success) {
-      navigate('/workspace', { replace: true });
-    }
-  };
+  // Same 16px root as the landing page so the 1280px column lines up.
+  useEffect(() => {
+    document.documentElement.classList.add("lp-root");
+    return () => document.documentElement.classList.remove("lp-root");
+  }, []);
 
   const handleGoogle = async (credential) => {
     const result = await googleLogin(credential);
     if (result.success) {
-      navigate('/workspace', { replace: true });
+      navigate("/workspace", { replace: true });
     }
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Minimal top bar */}
-      <nav className="flex items-center justify-between px-8 py-5 border-b border-border">
-        <a
-          href="/"
-          className="text-label text-muted-foreground tracking-widest hover:text-foreground px-2.5 py-1 rounded-md hover:bg-muted/60 transition-colors"
-          style={{ fontSize: '11px' }}
-        >
-          ← BACK
-        </a>
-        <a href="/" className="flex items-center gap-2 group">
-          <img
-            src="/logo.png"
-            alt="Sagewell Logo"
-            className="w-6 h-6 object-contain drop-shadow-xs dark:drop-shadow-[0_2px_6px_rgba(255,255,255,0.15)] group-hover:scale-105 transition-transform duration-200 flex-shrink-0"
-          />
-          <span className="text-foreground tracking-tight font-semibold text-sm">Sagewell</span>
-          <span className="text-micro font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground border border-border/60">
-            LM
-          </span>
-        </a>
-        <button
-          onClick={toggleTheme}
-          className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors rounded-lg cursor-pointer"
-          aria-label="Toggle theme"
-          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {theme === 'dark' ? (
-            <Sun className="w-4 h-4" />
-          ) : (
-            <Moon className="w-4 h-4" />
-          )}
-        </button>
-      </nav>
-
-      {/* Auth form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-16">
-        <div className="w-full max-w-md animate-fade-in-up p-8 border border-border/80 bg-card rounded-xl shadow-sm">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center mb-3">
-              <img
-                src="/logo.png"
-                alt="Sagewell"
-                className="w-12 h-12 object-contain drop-shadow-sm dark:drop-shadow-[0_3px_12px_rgba(255,255,255,0.18)] select-none hover:scale-105 transition-transform duration-200"
-              />
-            </div>
-            <p className="text-label mb-2" style={{ color: 'var(--accent)', fontSize: '11px', letterSpacing: '0.12em' }}>
-              {mode === 'login' ? 'ACCESS CREDENTIALS' : 'CREATE IDENTITY'}
-            </p>
-            <h2 className="text-display text-foreground">
-              {mode === 'login' ? 'Sign In' : 'Register'}
-            </h2>
-          </div>
-
-          {/* Google sign-in (hidden when VITE_GOOGLE_CLIENT_ID is not set) */}
-          {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
-            <div className="mb-6">
-              <GoogleSignInButton onCredential={handleGoogle} />
-              <div className="flex items-center gap-3 mt-6">
-                <div className="h-px flex-1 bg-border/70" />
-                <span className="text-xs text-muted-foreground uppercase tracking-wider">or</span>
-                <div className="h-px flex-1 bg-border/70" />
-              </div>
-            </div>
-          )}
-
-          {/* Login Form */}
-          {mode === 'login' && (
-            <form onSubmit={handleLogin} className="space-y-5">
-              <div className="space-y-1.5">
-                <Label htmlFor="login-email" className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                  Email Address
-                </Label>
-                <Input
-                  id="login-email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={loginForm.email}
-                  onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                  required
-                  className="h-11 px-3.5 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-foreground focus:ring-2 focus:ring-foreground/10 transition-all outline-none"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="login-password" className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                  Password
-                </Label>
-                <Input
-                  id="login-password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={loginForm.password}
-                  onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                  required
-                  className="h-11 px-3.5 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-foreground focus:ring-2 focus:ring-foreground/10 transition-all outline-none"
-                />
-              </div>
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full mt-6 text-sm font-medium tracking-wide shadow-sm"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  'Sign In'
-                )}
-              </Button>
-            </form>
-          )}
-
-          {/* Register Form */}
-          {mode === 'register' && (
-            <form onSubmit={handleRegister} className="space-y-5">
-              <div className="space-y-1.5">
-                <Label htmlFor="register-name" className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                  Display Name
-                </Label>
-                <Input
-                  id="register-name"
-                  type="text"
-                  placeholder="Your Name"
-                  value={registerForm.name}
-                  onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
-                  required
-                  className="h-11 px-3.5 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-foreground focus:ring-2 focus:ring-foreground/10 transition-all outline-none"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="register-email" className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                  Email Address
-                </Label>
-                <Input
-                  id="register-email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={registerForm.email}
-                  onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
-                  required
-                  className="h-11 px-3.5 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-foreground focus:ring-2 focus:ring-foreground/10 transition-all outline-none"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="register-password" className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                  Password
-                </Label>
-                <Input
-                  id="register-password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={registerForm.password}
-                  onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
-                  required
-                  className="h-11 px-3.5 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-foreground focus:ring-2 focus:ring-foreground/10 transition-all outline-none"
-                />
-              </div>
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full mt-6 text-sm font-medium tracking-wide shadow-sm"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating account...
-                  </>
-                ) : (
-                  'Create Account'
-                )}
-              </Button>
-            </form>
-          )}
-
-          {/* Toggle */}
-          <div className="text-center mt-6 pt-4 border-t border-border/50">
-            <p className="text-sm text-muted-foreground">
-              {mode === 'login' ? "Don't have an account?" : "Already have an account?"}
-              <button
-                type="button"
-                onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-                className="ml-2 text-foreground hover:underline underline-offset-4 transition-colors font-semibold cursor-pointer"
-              >
-                {mode === 'login' ? 'Register' : 'Sign In'}
-              </button>
-            </p>
+    <div className="flex min-h-screen flex-col overflow-x-clip bg-lp-bg font-landing text-lp-text antialiased selection:bg-brand/25">
+      <header className="w-full border-b border-lp-line">
+        <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-4 px-6 md:px-4">
+          <Logo />
+          <div className="flex items-center gap-3">
+            <Link
+              to="/"
+              className="hidden items-center gap-1.5 text-[15px] text-lp-text transition-colors hover:text-lp-heading sm:flex"
+            >
+              <ArrowLeft className="size-4" /> Back to home
+            </Link>
+            <ThemeToggle className="text-lp-text hover:bg-lp-soft hover:text-lp-heading" />
           </div>
         </div>
-      </div>
+      </header>
+
+      <main className="flex-1">
+        <Rails>
+          <div className="flex flex-col items-center px-6 pt-20 pb-16 text-center md:pt-24">
+            <Reveal>
+              <p className="text-sm text-brand">Sign in</p>
+            </Reveal>
+            <Reveal delay={0.05}>
+              <h1 className="mt-3 font-display text-4xl leading-[1.08] font-normal tracking-tight text-lp-heading md:text-5xl">
+                Welcome to Sagewell
+              </h1>
+            </Reveal>
+            <Reveal delay={0.1}>
+              <p className="mx-auto mt-5 max-w-md text-base leading-relaxed text-lp-text">
+                Continue with your Google account to open your notebooks. New here? The same button creates your
+                account.
+              </p>
+            </Reveal>
+          </div>
+        </Rails>
+
+        <Rule markers />
+        <Rails className="bg-lp-soft px-6 py-14 md:py-16">
+          <Reveal delay={0.15} className="mx-auto w-full max-w-md">
+            <div className="rounded-xl border border-lp-line bg-lp-bg p-8 shadow-[0_20px_60px_-24px_rgb(0_0_0/0.18)]">
+              <p className="text-center font-dm-mono text-[13px] uppercase tracking-wide text-lp-text">Continue with</p>
+
+              <div className="mt-5 w-full">
+                {GOOGLE_CONFIGURED ? (
+                  <GoogleSignInButton onCredential={handleGoogle} lightTheme="filled_black" darkTheme="outline" />
+                ) : (
+                  <p className="rounded-lg border border-lp-line bg-lp-soft px-4 py-3 text-center text-[14px] text-lp-heading">
+                    Google sign-in isn’t configured. Set <code className="font-dm-mono text-[13px]">VITE_GOOGLE_CLIENT_ID</code> in
+                    the frontend environment.
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-4 flex h-5 items-center justify-center" aria-live="polite">
+                {isLoading && (
+                  <span className="flex items-center gap-2 text-[13px] text-lp-text">
+                    <Loader2 className="size-3.5 animate-spin" /> Signing you in…
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-4 border-t border-lp-line pt-5 text-center text-[13px] leading-relaxed text-lp-text">
+                Sagewell uses your Google name, email and profile picture to set up your account. No password is
+                stored.
+              </div>
+            </div>
+          </Reveal>
+        </Rails>
+        <Rule markers />
+
+        <Rails>
+          <div className="grid md:grid-cols-3">
+            {FACTS.map(({ icon: Icon, title, text }, i) => (
+              <Reveal
+                key={title}
+                delay={i * 0.06}
+                className={`px-8 py-10 ${i < 2 ? "border-b border-lp-line md:border-r md:border-b-0" : ""}`}
+              >
+                <h2 className="flex items-center gap-2.5 font-landing text-[17px] font-normal tracking-normal text-lp-heading">
+                  <Icon className="size-[18px]" /> {title}
+                </h2>
+                <p className="mt-2 text-[15px] leading-relaxed text-lp-text">{text}</p>
+              </Reveal>
+            ))}
+          </div>
+        </Rails>
+        <Rule />
+      </main>
+
+      <footer className="mx-auto flex w-full max-w-7xl flex-col items-center justify-between gap-3 px-6 py-8 text-[14px] text-lp-link sm:flex-row md:px-4">
+        <p>© {new Date().getFullYear()} Sagewell. Open source.</p>
+        <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-lp-heading">
+          GitHub
+        </a>
+      </footer>
     </div>
   );
 }

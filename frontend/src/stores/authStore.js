@@ -33,34 +33,6 @@ export const useAuthStore = create((set) => ({
     }
   },
 
-  login: async (credentials) => {
-    try {
-      set({ isLoading: true });
-      const response = await axiosInstance.post('/auth/login', credentials);
-      
-      const { token, user } = response.data;
-      if (token) {
-        localStorage.setItem('authToken', token);
-      }
-      
-      set({
-        authUser: user
-      });
-      identifyUser(user);
-      capture('user_logged_in');
-
-      toast.success("Login successful");
-      return { success: true };
-    } catch (error) {
-      console.error("Login error:", error);
-      const message = error.response?.data?.message || "Login failed";
-      toast.error(message);
-      return { success: false, error: message };
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
   googleLogin: async (credential) => {
     try {
       set({ isLoading: true });
@@ -80,34 +52,6 @@ export const useAuthStore = create((set) => ({
     } catch (error) {
       console.error("Google sign-in error:", error);
       const message = error.response?.data?.message || "Google sign-in failed";
-      toast.error(message);
-      return { success: false, error: message };
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  register: async (credentials) => {
-    try {
-      set({ isLoading: true });
-      const response = await axiosInstance.post('/auth/register', credentials);
-      
-      const { token, user } = response.data;
-      if (token) {
-        localStorage.setItem('authToken', token);
-      }
-      
-      set({
-        authUser: user
-      });
-      identifyUser(user);
-      capture('user_registered');
-
-      toast.success("Registration successful");
-      return { success: true };
-    } catch (error) {
-      console.error("Register error:", error);
-      const message = error.response?.data?.message || "Registration failed";
       toast.error(message);
       return { success: false, error: message };
     } finally {
