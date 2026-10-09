@@ -6,8 +6,6 @@ import Hero from "./landing/Hero";
 import HowItWorks from "./landing/HowItWorks";
 import Features from "./landing/Features";
 import UseCases from "./landing/UseCases";
-import Benefits from "./landing/Benefits";
-import OpenSource from "./landing/OpenSource";
 import Privacy from "./landing/Privacy";
 import Faq from "./landing/Faq";
 import ClosingCta from "./landing/ClosingCta";
@@ -35,8 +33,6 @@ export default function LandingPage() {
         <HowItWorks />
         <Features />
         <UseCases />
-        <Benefits />
-        <OpenSource />
         <Privacy />
         <Faq />
         <ClosingCta />

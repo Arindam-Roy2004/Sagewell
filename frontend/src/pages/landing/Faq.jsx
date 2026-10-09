@@ -1,19 +1,12 @@
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { Rails, Rule, SectionHeading, Reveal, LpButton } from "./primitives";
-import { FAQ, README_URL, ISSUES_URL } from "./content";
+import { Rails, Rule, SectionHeading } from "./primitives";
+import { FAQ } from "./content";
 
 export default function Faq() {
   return (
     <section id="faq" className="scroll-mt-24">
       <Rails>
-        <SectionHeading eyebrow={FAQ.eyebrow} title={FAQ.title} subtitle={FAQ.subtitle} className="pb-12">
-          <Reveal delay={0.15} className="mt-8 flex flex-wrap justify-center gap-4">
-            <LpButton href={README_URL}>Read the docs</LpButton>
-            <LpButton href={ISSUES_URL} variant="outline">
-              Ask on GitHub
-            </LpButton>
-          </Reveal>
-        </SectionHeading>
+        <SectionHeading eyebrow={FAQ.eyebrow} title={FAQ.title} className="pb-12" />
         <Accordion type="single" collapsible className="border-t border-lp-line">
           {FAQ.items.map((item) => (
             <AccordionItem key={item.q} value={item.q} className="border-lp-line px-8">

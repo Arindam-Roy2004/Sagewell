@@ -1,7 +1,6 @@
 import { motion } from "motion/react";
-import { Github } from "lucide-react";
 import { Rails, Rule, LpButton } from "./primitives";
-import { HERO, REPO_URL } from "./content";
+import { HERO } from "./content";
 
 const MotionDiv = motion.div;
 
@@ -15,7 +14,7 @@ export default function Hero() {
   return (
     <section id="top">
       <Rails>
-        <div className="flex flex-col items-center px-6 pt-24 pb-24 text-center md:pt-32 md:pb-28">
+        <div className="flex flex-col items-center px-6 pt-24 pb-20 text-center md:pt-32 md:pb-24">
           <MotionDiv {...enter(0)}>
             <p className="text-sm text-brand">{HERO.eyebrow}</p>
           </MotionDiv>
@@ -32,14 +31,9 @@ export default function Hero() {
           </MotionDiv>
           <MotionDiv {...enter(0.24)} className="mt-8 flex flex-wrap items-center justify-center gap-4">
             <LpButton to="/auth">Get started</LpButton>
-            <LpButton href={REPO_URL} variant="outline">
-              View on GitHub
+            <LpButton href="#how-it-works" variant="outline">
+              See how it works
             </LpButton>
-          </MotionDiv>
-          <MotionDiv {...enter(0.32)} className="mt-14 flex items-center gap-3 text-sm text-lp-text">
-            <Github className="size-4 text-lp-heading" />
-            <span className="h-4 w-px bg-lp-line" />
-            <span>{HERO.footnote}</span>
           </MotionDiv>
         </div>
       </Rails>

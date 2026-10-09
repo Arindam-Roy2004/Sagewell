@@ -129,7 +129,7 @@ export default function Features() {
   return (
     <section id="features" className="scroll-mt-24">
       <Rails>
-        <SectionHeading eyebrow={FEATURES.eyebrow} title={FEATURES.title} subtitle={FEATURES.subtitle} />
+        <SectionHeading eyebrow={FEATURES.eyebrow} title={FEATURES.title} />
 
         <div className="grid border-t border-lp-line md:grid-cols-2">
           <Reveal className="overflow-hidden border-b border-lp-line px-8 pt-10 pb-0 md:border-r md:border-b-0">
@@ -145,16 +145,6 @@ export default function Features() {
         <Reveal className="lp-dots border-t border-lp-line px-8 py-12">
           <CellTitle {...FEATURES.sources} />
           <SourcesDiagram />
-          <div className="mt-16 grid gap-10 md:grid-cols-3">
-            {FEATURES.small.map(({ icon: Icon, title, text }) => (
-              <div key={title}>
-                <h3 className="flex items-center gap-2.5 font-landing text-[18px] font-normal tracking-normal text-lp-heading">
-                  <Icon className="size-[18px]" /> {title}
-                </h3>
-                <p className="mt-2 max-w-xs text-[15px] leading-relaxed text-lp-text">{text}</p>
-              </div>
-            ))}
-          </div>
         </Reveal>
       </Rails>
       <Rule />

@@ -103,7 +103,7 @@ export default function HowItWorks() {
   return (
     <section id="how-it-works" className="scroll-mt-24">
       <Rails>
-        <SectionHeading eyebrow={HOW_IT_WORKS.eyebrow} title={HOW_IT_WORKS.title} subtitle={HOW_IT_WORKS.subtitle} />
+        <SectionHeading eyebrow={HOW_IT_WORKS.eyebrow} title={HOW_IT_WORKS.title} />
         <div className="grid border-t border-lp-line md:grid-cols-2">
           {/* Step list */}
           <div className="border-lp-line md:border-r">
