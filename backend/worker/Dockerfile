@@ -14,4 +14,6 @@ COPY shared/ ./shared/
 COPY worker/ ./worker/
 
 ENV NODE_ENV=production
+# Run as the image's unprivileged user, not root.
+USER node
 CMD ["node", "worker/index.js"]

@@ -1,0 +1,216 @@
+name: Build and Deploy Backend
+
+# Same pattern as RoastForge: build in CI, push to Docker Hub, then the VPS pulls the
+# prebuilt images and swaps the containers with `docker run`. No compose file in prod.
+#
+# Required repo secrets: DOCKERHUB_USERNAME, DOCKERHUB_TOKEN, VPS_HOST, VPS_USERNAME,
+# VPS_SSH_KEY. The runtime .env lives on the server at /root/app/sagewell/.env.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+
+# Don't cancel in progress — interrupting a container swap can leave nothing running.
+concurrency:
+  group: deploy-sagewell-backend
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Backend tests
+        working-directory: backend
+        run: |
+          bun install --frozen-lockfile
+          bun test
+
+  build-and-push:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        include:
+          - image: sagewell-api
+            dockerfile: Dockerfile
+          - image: sagewell-worker
+            dockerfile: worker/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      # Needed for the gha build cache below — the default docker driver can't
+      # export cache, only the docker-container driver this sets up can.
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/${{ matrix.dockerfile }}
+          push: true
+          # SHA tag alongside latest, so a rollback has something to point at.
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        env:
+          # Derived from github.sha rather than passed as a job output, so re-running
+          # only the failed jobs still resolves to a real tag.
+          API_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/sagewell-api:${{ github.sha }}
+          WORKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/sagewell-worker:${{ github.sha }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: API_IMAGE,WORKER_IMAGE
+          script: |
+            set -euo pipefail
+
+            NET=sagewell-net
+            API=sagewell-api
+            WORKER=sagewell-worker
+            REDIS=sagewell-redis
+            ENV_FILE=/root/app/sagewell/.env
+            READY_URL=http://127.0.0.1:8080/api/v1/health
+
+            for ref in "${API_IMAGE:-}" "${WORKER_IMAGE:-}"; do
+              case "$ref" in
+                ""|*:) echo "::error::Image reference is not set or has no tag: '$ref'"; exit 1 ;;
+              esac
+            done
+            [ -f "$ENV_FILE" ] || { echo "::error::$ENV_FILE is missing"; exit 1; }
+
+            # Don't leave registry credentials on the server after the run.
+            trap 'docker logout >/dev/null 2>&1 || true' EXIT
+
+            # By image ID, not tag — :latest already points at the new build.
+            PREV_API="$(docker inspect --format='{{.Image}}' "$API" 2>/dev/null || echo '')"
+            PREV_WORKER="$(docker inspect --format='{{.Image}}' "$WORKER" 2>/dev/null || echo '')"
+            echo "Currently serving: api=${PREV_API:-<nothing>} worker=${PREV_WORKER:-<nothing>}"
+            echo "Deploying: $API_IMAGE and $WORKER_IMAGE"
+
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" \
+              | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+            # Pull before stopping anything, so a failed pull costs no downtime.
+            docker pull "$API_IMAGE"
+            docker pull "$WORKER_IMAGE"
+
+            # Private network for this app only: Redis is not published and cannot be
+            # reached from other containers on the host (e.g. roasthub-api).
+            docker network inspect "$NET" >/dev/null 2>&1 || docker network create "$NET"
+
+            # Redis keeps running across deploys (its queue lives in the volume).
+            if ! docker ps --format '{{.Names}}' | grep -qx "$REDIS"; then
+              docker rm "$REDIS" 2>/dev/null || true
+              docker run -d --name "$REDIS" --restart unless-stopped \
+                --network "$NET" --memory 300m \
+                -v sagewell-redis-data:/data \
+                redis:7-alpine redis-server --appendonly yes \
+                --maxmemory 200mb --maxmemory-policy noeviction
+            fi
+            for i in $(seq 1 15); do
+              [ "$(docker exec "$REDIS" redis-cli ping 2>/dev/null || true)" = "PONG" ] && break
+              sleep 1
+            done
+
+            start_api() {
+              docker run -d --name "$API" --restart unless-stopped --init \
+                --network "$NET" --memory 768m \
+                --env-file "$ENV_FILE" \
+                -e NODE_ENV=production -e PORT=8080 -e REDIS_HOST="$REDIS" \
+                --log-opt max-size=10m --log-opt max-file=3 \
+                -p 127.0.0.1:8080:8080 \
+                "$1"
+            }
+
+            start_worker() {
+              docker run -d --name "$WORKER" --restart unless-stopped --init \
+                --network "$NET" --memory 768m \
+                --env-file "$ENV_FILE" \
+                -e NODE_ENV=production -e REDIS_HOST="$REDIS" \
+                --log-opt max-size=10m --log-opt max-file=3 \
+                "$1"
+            }
+
+            stop_app() {
+              # The worker gets time to finish a job it is processing.
+              docker stop -t 30 "$WORKER" 2>/dev/null || true
+              docker stop "$API" 2>/dev/null || true
+              docker rm "$WORKER" "$API" 2>/dev/null || true
+            }
+
+            # Gate on readiness, not liveness — the API only listens once MongoDB
+            # connects, and /api/v1/health returns 503 while it is down.
+            wait_ready() {
+              for attempt in $(seq 1 40); do
+                if curl --fail --silent --max-time 3 "$READY_URL" > /dev/null; then
+                  echo "API ready after ${attempt} attempt(s)."
+                  return 0
+                fi
+                sleep 2
+              done
+              return 1
+            }
+
+            # The worker has no HTTP endpoint: it must still be running, with no
+            # restarts, a few seconds after start (bad config makes it crash-loop).
+            worker_stable() {
+              sleep 10
+              [ "$(docker inspect --format='{{.State.Running}} {{.RestartCount}}' "$WORKER" 2>/dev/null || true)" = "true 0" ]
+            }
+
+            stop_app
+            start_api "$API_IMAGE"
+            start_worker "$WORKER_IMAGE"
+
+            echo "Waiting for readiness..."
+            if wait_ready && worker_stable; then
+              docker image prune -f --filter "until=168h" || true
+              echo "Deploy complete: $API_IMAGE"
+              exit 0
+            fi
+
+            echo "::error::New containers failed readiness. Rolling back."
+            docker logs --tail 40 "$API" || true
+            docker logs --tail 40 "$WORKER" || true
+            stop_app
+
+            if [ -n "$PREV_API" ] && [ -n "$PREV_WORKER" ]; then
+              echo "Restoring $PREV_API and $PREV_WORKER"
+              start_api "$PREV_API"
+              start_worker "$PREV_WORKER"
+              if wait_ready; then
+                echo "Rollback healthy. Previous version is serving."
+              else
+                echo "::error::Rollback did NOT become healthy. Service is down."
+              fi
+            else
+              echo "::error::No previous containers to roll back to. Service is down."
+            fi
+            # Fail the run even if the rollback worked — the deploy didn't happen.
+            exit 1
