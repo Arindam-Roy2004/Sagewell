@@ -24,7 +24,8 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { cn } from "@/lib/utils";
 import { useSourceStore } from '../stores/sourceStore';
 import { axiosInstance } from '../lib/axios';
-import { getSourceMeta, getSourceName } from './workspace/source-meta';
+import { getSourceMeta, getSourceName, describeSourceDeletion } from './workspace/source-meta';
+import { useChatStore } from '../stores/chatStore';
 import { SourceIcon, SourceStatus } from './workspace/source-badges';
 
 const STEPS = [
@@ -68,6 +69,7 @@ function Placeholder({ icon: Icon, title, text, children, tone = "muted" }) {
 
 export default function ContentPanel({ headerActions }) {
   const { sources, selectedSource, getViewUrl, citationJump, deleteSource } = useSourceStore();
+  const getSourceDeletionImpact = useChatStore((s) => s.getSourceDeletionImpact);
   const [isLoadingViewUrl, setIsLoadingViewUrl] = useState(false);
   const [activeTab, setActiveTab] = useState('summary');
   const [showTutorial, setShowTutorial] = useState(false);
@@ -406,8 +408,8 @@ export default function ContentPanel({ headerActions }) {
         onOpenChange={setConfirmDelete}
         title="Delete this source?"
         description={
-          selectedSource
-            ? `“${getSourceName(selectedSource)}” and its passages will be removed. Dialogues that relied only on it become read-only.`
+          selectedSource && confirmDelete
+            ? describeSourceDeletion(getSourceName(selectedSource), getSourceDeletionImpact(sourceId))
             : ''
         }
         confirmLabel="Delete source"

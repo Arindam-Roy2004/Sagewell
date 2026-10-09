@@ -9,8 +9,9 @@ import { deleteSourceVectors } from "../../shared/libs/qdrant.js";
  * Background cascade for deleting a source.
  *
  * Order matters for correctness, not just cleanup:
- *   1. Pull the source out of EVERY chat that referenced it, then flag any chat left with
- *      zero sources as read-only (so the UI can disable it instead of 404-ing on retrieval).
+ *   1. Pull the source out of EVERY chat that referenced it, then delete any chat left
+ *      with no sources (it has nothing left to answer from). The API request already did
+ *      this so the UI could update at once; repeating it here is an idempotent safety net.
  *   2. Delete Qdrant vectors, Mongo chunks, and the S3 object (best-effort — a single
  *      failing dependency shouldn't strand the rest).
  *   3. Finally delete the Source document itself (authoritative). If this throws, BullMQ
@@ -19,15 +20,12 @@ import { deleteSourceVectors } from "../../shared/libs/qdrant.js";
 export async function processSourceDeletion(job) {
   const { sourceId, userId, s3Key } = job.data;
 
-  // 1. Remove from all chats, then mark emptied chats read-only.
+  // 1. Remove from all chats, then delete chats left with no sources.
   await Chat.updateMany(
     { userId, sourceIds: sourceId },
     { $pull: { sourceIds: sourceId } }
   );
-  await Chat.updateMany(
-    { userId, sourceIds: { $size: 0 }, isReadOnly: false },
-    { $set: { isReadOnly: true } }
-  );
+  await Chat.deleteMany({ userId, sourceIds: { $size: 0 } });
 
   // 2. External resources (best-effort).
   try {

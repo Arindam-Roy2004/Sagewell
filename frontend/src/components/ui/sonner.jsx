@@ -6,11 +6,17 @@ const Toaster = ({
 }) => {
   const theme = useThemeStore((s) => s.theme);
 
+  // Top-center sits over the empty middle of the app header. Bottom-right covered the
+  // Dialogue composer and its Send button.
+
   return (
     <Sonner
       theme={theme}
       className="toaster group"
-      position="bottom-right"
+      position="top-center"
+      offset={12}
+      mobileOffset={12}
+      visibleToasts={3}
       toastOptions={{
         style: {
           fontFamily: 'var(--font-sans)',

@@ -29,7 +29,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { cn } from '@/lib/utils';
 import { useSourceStore } from '../stores/sourceStore';
 import { useChatStore } from '../stores/chatStore';
-import { getSourceMeta, getSourceName } from './workspace/source-meta';
+import { getSourceMeta, getSourceName, describeSourceDeletion } from './workspace/source-meta';
 import { SourceIcon, SourceStatus } from './workspace/source-badges';
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.csv', '.txt'];
@@ -106,6 +106,7 @@ export default function SourcePanel({ headerActions }) {
   } = useSourceStore();
   const activeChatId = useChatStore((s) => s.activeChatId);
   const startNewChat = useChatStore((s) => s.startNewChat);
+  const getSourceDeletionImpact = useChatStore((s) => s.getSourceDeletionImpact);
   const isChatActive = Boolean(activeChatId);
 
   const [addOpen, setAddOpen] = useState(false);
@@ -375,7 +376,9 @@ export default function SourcePanel({ headerActions }) {
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:!text-destructive"
-                        onSelect={() => setPendingDelete({ id, name: displayName })}
+                        onSelect={() =>
+                          setPendingDelete({ id, name: displayName, impact: getSourceDeletionImpact(id) })
+                        }
                       >
                         <Trash2 /> Delete
                       </DropdownMenuItem>
@@ -592,11 +595,7 @@ export default function SourcePanel({ headerActions }) {
         open={Boolean(pendingDelete)}
         onOpenChange={(open) => !open && setPendingDelete(null)}
         title="Delete this source?"
-        description={
-          pendingDelete
-            ? `“${pendingDelete.name}” and its passages will be removed. Dialogues that relied only on it become read-only.`
-            : ''
-        }
+        description={pendingDelete ? describeSourceDeletion(pendingDelete.name, pendingDelete.impact) : ''}
         confirmLabel="Delete source"
         destructive
         onConfirm={confirmDelete}

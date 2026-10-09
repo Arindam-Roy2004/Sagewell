@@ -1,5 +1,7 @@
 import "dotenv/config";
 import Source from "../../shared/models/source.model.js";
+import Chat from "../../shared/models/chat.model.js";
+import { abortChatStreams } from "./chat.controllers.js";
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { Queue } from "bullmq";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -483,13 +485,18 @@ export const getViewUrl = async (req, res) => {
 };
 
 /**
- * Delete a source. The heavy cascade (Qdrant vectors, Mongo chunks, S3 object, and
- * pulling this source out of every chat) runs in a background BullMQ job so the request
- * returns instantly and a slow external service can't make the user wait.
+ * Delete a source.
  *
- * We mark the source "deleting" immediately so it disappears from the library (getSources
- * filters it out) even before the job finishes. Allowed at any time — including when a
- * chat is "locked" — because the cascade handles chat membership correctly.
+ * Dialogues are scoped to their sources, so they follow the source:
+ *   - a dialogue whose ONLY source is this one has nothing left to answer from and is
+ *     deleted with it;
+ *   - a dialogue that still has other sources keeps them and just drops this one.
+ * That part is cheap and runs here, so the response tells the client exactly which
+ * dialogues went away and the UI never shows a dialogue that no longer exists.
+ *
+ * The heavy cascade (Qdrant vectors, Mongo chunks, S3 object, the source document)
+ * runs in a background BullMQ job so a slow external service can't make the user wait.
+ * The job repeats the dialogue step idempotently, as a safety net.
  */
 export const deleteSource = async (req, res) => {
   try {
@@ -504,7 +511,8 @@ export const deleteSource = async (req, res) => {
       return res.status(403).json({ success: false, message: "Not authorized to delete this source" });
     }
 
-    // Mark as deleting (hidden from the library) and enqueue the cascade atomically.
+    // Mark as deleting (hidden from the library) and enqueue the cascade first, so the
+    // cleanup is guaranteed even if a later step in this request fails.
     source.status = "deleting";
     await Promise.all([
       source.save(),
@@ -515,10 +523,22 @@ export const deleteSource = async (req, res) => {
       }),
     ]);
 
+    const linkedChats = await Chat.find({ userId, sourceIds: source._id }).select("_id sourceIds").lean();
+    const deletedChatIds = linkedChats
+      .filter((c) => c.sourceIds.every((id) => id.equals(source._id)))
+      .map((c) => c._id.toString());
+
+    if (deletedChatIds.length) {
+      abortChatStreams(userId.toString(), deletedChatIds);
+      await Chat.deleteMany({ _id: { $in: deletedChatIds }, userId });
+    }
+    await Chat.updateMany({ userId, sourceIds: source._id }, { $pull: { sourceIds: source._id } });
+
     return res.status(200).json({
       success: true,
-      message: "Source deletion started",
+      message: "Source deleted",
       sourceId,
+      deletedChatIds,
     });
   } catch (error) {
     logger.error({ err: error }, "Error starting source deletion");

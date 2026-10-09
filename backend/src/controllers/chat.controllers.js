@@ -37,6 +37,18 @@ Citations & Grounding:
 const activeStreams = new Map();
 
 /**
+ * Stops any in-flight answer streams for these chats (e.g. because the chats are being
+ * deleted along with their source), so a stream never writes to a deleted document.
+ */
+export function abortChatStreams(userId, chatIds) {
+  for (const chatId of chatIds) {
+    const streamKey = `${userId}:${chatId}`;
+    activeStreams.get(streamKey)?.abort();
+    activeStreams.delete(streamKey);
+  }
+}
+
+/**
  * Builds the full prompt from memory, retrieval, and conversation context.
  * Extracted as a shared helper so both createMessage and regenerateMessage can reuse it.
  *

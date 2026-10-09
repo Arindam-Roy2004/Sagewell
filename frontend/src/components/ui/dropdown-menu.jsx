@@ -7,7 +7,13 @@ import { cn } from "@/lib/utils";
 // overflow and always sits above other content — fixing the old "dropdown not visible /
 // not clickable" problem. It also handles focus, Escape, and outside-click for free.
 
-const DropdownMenu = DropdownMenuPrimitive.Root;
+// Non-modal by default. Several menu items open a confirm dialog; when a MODAL menu closes
+// at the same moment a modal dialog opens, Radix can leave `pointer-events: none` on
+// <body>, freezing every button on the page until a reload. A non-modal menu never locks
+// the page, so that can't happen. Pass modal={true} to opt back in where needed.
+const DropdownMenu = ({ modal = false, ...props }) => (
+  <DropdownMenuPrimitive.Root modal={modal} {...props} />
+);
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
 const DropdownMenuContent = React.forwardRef(

@@ -68,6 +68,10 @@ async function consumeSSEStream(response, { onMetadata, onToken, onDone, onStopp
   }
 }
 
+// Chats carry sourceIds either as plain ids or as populated source objects.
+const idOf = (s) => (typeof s === 'string' ? s : s?._id || s?.id);
+const sourceIdsOf = (chat) => (chat?.sourceIds || []).map(idOf).filter(Boolean);
+
 export const useChatStore = create((set, get) => ({
   chats: [],
   activeChatId: null,
@@ -700,24 +704,73 @@ export const useChatStore = create((set, get) => ({
   },
 
   /**
-   * Mirror the server-side source-deletion cascade in local state: remove the deleted
-   * source from every chat's sourceIds, and mark any chat left with zero sources read-only.
-   * Gives instant UI feedback without waiting for a refetch.
+   * What deleting a source does to dialogues, for the confirm dialog:
+   * `removed` dialogues use only this source and are deleted with it; `kept` dialogues
+   * have other sources and just drop this one. Mirrors the server's rule.
+   */
+  getSourceDeletionImpact: (sourceId) => {
+    let removed = 0;
+    let kept = 0;
+    for (const chat of get().chats) {
+      const ids = sourceIdsOf(chat);
+      if (!ids.includes(sourceId)) continue;
+      if (ids.every((id) => id === sourceId)) removed += 1;
+      else kept += 1;
+    }
+    return { removed, kept };
+  },
+
+  /**
+   * Mirror the server-side source-deletion cascade in local state so the UI updates at
+   * once: dialogues that used only this source disappear (if one was open, the panel
+   * resets to a new dialogue), the rest drop it. Returns a snapshot for rollback.
    */
   applySourceDeletion: (sourceId) => {
-    const strip = (chat) => {
-      if (!chat) return chat;
-      const ids = (chat.sourceIds || []).filter(
-        (s) => (typeof s === 'string' ? s : s._id || s.id) !== sourceId
-      );
-      const isReadOnly = chat.isReadOnly || ids.length === 0;
-      return { ...chat, sourceIds: ids, isReadOnly };
+    const snapshot = {
+      chats: get().chats,
+      activeChatId: get().activeChatId,
+      activeChat: get().activeChat,
+      messages: get().messages,
     };
 
+    const usesOnly = (chat) => {
+      const ids = sourceIdsOf(chat);
+      return ids.length > 0 && ids.every((id) => id === sourceId);
+    };
+    const strip = (chat) => ({
+      ...chat,
+      sourceIds: (chat.sourceIds || []).filter((s) => idOf(s) !== sourceId),
+    });
+
+    const activeRemoved = Boolean(snapshot.activeChat && usesOnly(snapshot.activeChat));
+
+    // The server stops the stream for a deleted dialogue; stop reading it here too,
+    // without the extra /stop and save-partial calls stopGeneration() would make.
+    if (activeRemoved && get().isStreaming) {
+      get().abortController?.abort();
+      set({ isStreaming: false, abortController: null, streamingContent: '', streamingCitations: [] });
+    }
+
     set((state) => ({
-      chats: state.chats.map(strip),
-      activeChat: state.activeChat ? strip(state.activeChat) : state.activeChat,
+      chats: state.chats.filter((c) => !usesOnly(c)).map(strip),
+      activeChat: state.activeChat && !activeRemoved ? strip(state.activeChat) : state.activeChat,
     }));
+    if (activeRemoved) get().startNewChat();
+
+    return { snapshot, activeRemoved };
+  },
+
+  /** Drops dialogues by id (used to reconcile with the server's list after a delete). */
+  removeChatsById: (chatIds) => {
+    if (!chatIds?.length) return;
+    const gone = new Set(chatIds);
+    set((state) => ({ chats: state.chats.filter((c) => !gone.has(c._id)) }));
+    if (gone.has(get().activeChatId)) get().startNewChat();
+  },
+
+  /** Restores chat state captured by applySourceDeletion (when the delete request fails). */
+  restoreChatSnapshot: (snapshot) => {
+    if (snapshot) set(snapshot);
   },
 
   /**

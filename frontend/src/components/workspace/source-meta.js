@@ -17,3 +17,17 @@ export function getSourceMeta(type) {
 export function getSourceName(source) {
   return source?.title || source?.originalFileName || `${getSourceMeta(source?.type).label} source`;
 }
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/**
+ * Confirm-dialog text for deleting a source, spelling out what happens to dialogues.
+ * `impact` comes from chatStore.getSourceDeletionImpact().
+ */
+export function describeSourceDeletion(name, { removed = 0, kept = 0 } = {}) {
+  const parts = [`“${name}” and its passages will be permanently deleted.`];
+  if (removed) parts.push(`${plural(removed, "dialogue")} that only use${removed === 1 ? "s" : ""} it will be deleted too.`);
+  if (kept) parts.push(`${plural(kept, "other dialogue")} will keep their remaining sources.`);
+  parts.push("This can't be undone.");
+  return parts.join(" ");
+}

@@ -345,15 +345,20 @@ export const useSourceStore = create((set, get) => ({
   },
 
   /**
-   * Delete a source. The server runs the cascade (vectors/chunks/S3/chat-membership) in a
-   * background job. Allowed at any time — even while a chat is active/locked. Optimistic
-   * with rollback. Also reflects chat read-only state locally for instant feedback.
+   * Delete a source, and with it every dialogue that used only this source (dialogues
+   * with other sources keep those). Optimistic: the source, its Summary/Document view and
+   * the affected dialogues leave the UI at once; everything rolls back if the request
+   * fails. The server's list of deleted dialogues is applied too, so the UI ends up
+   * matching the server even if local state was stale.
    */
   deleteSource: async (sourceId) => {
     if (!sourceId) return { success: false };
 
-    const prev = get().sources;
-    const prevSelected = get().selectedSource;
+    const prev = {
+      sources: get().sources,
+      selectedSource: get().selectedSource,
+      selectedSourceIds: get().selectedSourceIds,
+    };
 
     set((state) => {
       const remaining = state.sources.filter((s) => s._id !== sourceId);
@@ -361,19 +366,25 @@ export const useSourceStore = create((set, get) => ({
       return {
         sources: remaining,
         selectedSourceIds: state.selectedSourceIds.filter((id) => id !== sourceId),
-        selectedSource: wasSelected ? remaining[0] || null : state.selectedSource,
+        // Don't silently open another source in its place; show the "pick a source" state.
+        selectedSource: wasSelected ? null : state.selectedSource,
+        citationJump: state.citationJump?.sourceId === sourceId ? null : state.citationJump,
       };
     });
+    const chatStore = useChatStore.getState();
+    const { snapshot } = chatStore.applySourceDeletion(sourceId);
 
     try {
-      await axiosInstance.delete(`/source/${sourceId}`);
-      toast.success('Source deletion started');
-      // Mirror the server-side chat cascade locally: drop this source from chats and, if a
-      // chat is left with none, mark it read-only so the UI reacts without waiting on a poll.
-      useChatStore.getState?.()?.applySourceDeletion?.(sourceId);
+      const res = await axiosInstance.delete(`/source/${sourceId}`);
+      const deletedChatIds = res.data?.deletedChatIds || [];
+      chatStore.removeChatsById(deletedChatIds);
+
+      const n = deletedChatIds.length;
+      toast.success(n ? `Source deleted, along with ${n} dialogue${n === 1 ? '' : 's'}` : 'Source deleted');
       return { success: true };
     } catch (error) {
-      set({ sources: prev, selectedSource: prevSelected });
+      set(prev);
+      chatStore.restoreChatSnapshot(snapshot);
       toast.error(error.response?.data?.message || 'Failed to delete source');
       return { success: false };
     }
