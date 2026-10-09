@@ -1,31 +1,29 @@
 import { useLocation, Link } from "react-router-dom";
 import { useEffect } from "react";
+import { ArrowLeft, Compass } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const NotFound = () => {
   const location = useLocation();
 
   useEffect(() => {
-    console.error(
-      "404 Error: User attempted to access non-existent route:",
-      location.pathname
-    );
+    console.error("404 Error: User attempted to access non-existent route:", location.pathname);
   }, [location.pathname]);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background px-6">
-      <p className="text-label mb-4" style={{ color: 'var(--accent)', fontSize: '11px' }}>
-        PAGE NOT FOUND
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 text-center">
+      <span className="flex size-12 items-center justify-center rounded-xl border border-border bg-muted/50 shadow-xs">
+        <Compass className="size-5 text-muted-foreground" />
+      </span>
+      <p className="mt-6 text-sm text-brand-app">404</p>
+      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Page not found</h1>
+      <p className="mt-3 max-w-sm text-sm text-muted-foreground">
+        The page <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{location.pathname}</code> doesn't exist or has
+        moved.
       </p>
-      <h1 className="text-foreground mb-6" style={{ fontSize: '64px', fontWeight: 'var(--font-weight-semibold)', letterSpacing: '-0.04em', lineHeight: '1' }}>
-        404
-      </h1>
-      <p className="text-body text-muted-foreground mb-8 text-center max-w-md">
-        The page you are looking for does not exist or has been moved.
-      </p>
-      <Button asChild size="lg" className="h-11 px-8 text-sm font-medium shadow-xs">
+      <Button asChild className="mt-8">
         <Link to="/">
-          Return Home
+          <ArrowLeft /> Back to home
         </Link>
       </Button>
     </div>

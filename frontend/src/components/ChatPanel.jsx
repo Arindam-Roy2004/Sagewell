@@ -1,40 +1,103 @@
-import { useState, useRef, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { toast } from 'sonner';
 import {
-  Send,
+  ArrowUp,
   Square,
   RotateCcw,
   Copy,
   Check,
-  Plus,
-  MessageSquare,
-  FileText,
   ChevronDown,
   Layers,
-  Sparkles,
   Pencil,
   Trash2,
   X,
   Pin,
-  MoreVertical,
+  PinOff,
+  MoreHorizontal,
   Lock,
   ThumbsUp,
   ThumbsDown,
-} from "lucide-react";
-import { useChatStore } from '../stores/chatStore';
-import { useSourceStore } from '../stores/sourceStore';
-import MessageContent from './MessageContent';
-import Citations from './Citations';
-import { toast } from 'sonner';
+  SquarePen,
+  Search,
+  MessagesSquare,
+  MessageSquareText,
+  ListChecks,
+  FlaskConical,
+  GitCompareArrows,
+  ArrowRight,
+  ArrowDown,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
+import LeafIcon from './icons/leaf-icon';
+import { useChatStore } from '../stores/chatStore';
+import { useSourceStore } from '../stores/sourceStore';
+import MessageContent from './MessageContent';
+import Citations from './Citations';
 
-export default function ChatPanel() {
+const SUGGESTIONS = [
+  { icon: ListChecks, text: 'Summarise the key findings in these sources.' },
+  { icon: FlaskConical, text: 'What methods or arguments do they present?' },
+  { icon: GitCompareArrows, text: 'Where do the sources agree or disagree?' },
+];
+
+function timeAgo(date) {
+  if (!date) return '';
+  const seconds = Math.max(0, (Date.now() - new Date(date).getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+/** Small icon button with a tooltip, for the message action row. */
+function ActionButton({ label, onClick, active, activeClass, children }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label={label}
+          aria-pressed={active}
+          className={cn(
+            'flex size-7 items-center justify-center rounded-md transition-colors cursor-pointer [&_svg]:size-3.5',
+            active ? activeClass : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+          )}
+        >
+          {children}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function AssistantAvatar() {
+  return (
+    <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-brand-app shadow-xs">
+      <LeafIcon size={14} strokeWidth={2.3} />
+    </span>
+  );
+}
+
+export default function ChatPanel({ headerActions }) {
   const { sources, selectedSourceIds, selectSource, jumpToCitation } = useSourceStore();
   const {
     chats,
@@ -60,8 +123,12 @@ export default function ChatPanel() {
   const [inputMessage, setInputMessage] = useState('');
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [chatQuery, setChatQuery] = useState('');
   const [editingChatId, setEditingChatId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
 
   const isReadOnly = Boolean(activeChat?.isReadOnly);
   const messagesEndRef = useRef(null);
@@ -153,7 +220,7 @@ export default function ChatPanel() {
     navigator.clipboard.writeText(text);
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2000);
-    toast.success("Copied to clipboard");
+    toast.success('Copied to clipboard');
   };
 
   // Clicking a citation chip opens the matching source in the Document viewer at its page.
@@ -171,7 +238,20 @@ export default function ChatPanel() {
   const handleNewChat = () => {
     setMenuOpen(false);
     startNewChat();
-    toast.info("Started new dialogue. Select sources from the Library to begin.");
+    toast.info('New dialogue started. Choose the sources to use, then ask a question.');
+  };
+
+  const confirmDeleteChat = async () => {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setPendingDelete(null);
+    await deleteChat(id);
+  };
+
+  const saveHeaderRename = async () => {
+    const t = renameValue.trim();
+    setRenameOpen(false);
+    if (activeChatId && t && t !== activeChat?.title) await renameChat(activeChatId, t);
   };
 
   // Find index of last assistant message to attach Regenerate button
@@ -183,42 +263,67 @@ export default function ChatPanel() {
     }
   }
 
+  const filteredChats = useMemo(() => {
+    const q = chatQuery.trim().toLowerCase();
+    if (!q) return chats;
+    return chats.filter((c) => (c.title || 'Untitled dialogue').toLowerCase().includes(q));
+  }, [chats, chatQuery]);
+
   const activeSourcesCount = selectedSourceIds.length;
-  const currentChatTitle = activeChat?.title || (activeChatId ? 'Current Dialogue' : 'New Dialogue');
+  const currentChatTitle = activeChat?.title || (activeChatId ? 'Current dialogue' : 'New dialogue');
+  const composerDisabled = isStreaming || activeSourcesCount === 0 || isReadOnly;
 
   return (
-    <div className="h-full flex flex-col bg-background relative">
-      {/* Chat Session Top Bar */}
-      <div className="px-4 py-2.5 border-b border-border flex items-center justify-between flex-shrink-0 bg-background/95 backdrop-blur-xs">
-        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+    <div className="relative flex h-full flex-col bg-background">
+      {/* Header */}
+      <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border pr-2 pl-2">
+        <DropdownMenu
+          open={menuOpen}
+          onOpenChange={(open) => {
+            setMenuOpen(open);
+            if (!open) {
+              setChatQuery('');
+              setEditingChatId(null);
+            }
+          }}
+        >
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex items-center gap-1.5 text-xs font-semibold text-foreground hover:text-muted-foreground transition-colors py-1 px-1.5 rounded-md hover:bg-muted/50 cursor-pointer"
+              className="flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent data-[state=open]:bg-accent cursor-pointer"
             >
-              {isReadOnly && <Lock className="w-3 h-3 text-muted-foreground flex-shrink-0" />}
-              <span className="truncate max-w-[180px]">{currentChatTitle}</span>
-              <ChevronDown className="w-3.5 h-3.5 opacity-60 flex-shrink-0" />
+              {isReadOnly ? <Lock className="size-3.5 shrink-0 text-muted-foreground" /> : <MessagesSquare className="size-4 shrink-0 text-muted-foreground" />}
+              <span className="truncate">{currentChatTitle}</span>
+              <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
 
-          <DropdownMenuContent align="start" className="w-72 p-1.5">
-            <div className="flex items-center justify-between px-2 py-1.5 mb-1 border-b border-border/60">
-              <span className="text-micro font-semibold text-muted-foreground uppercase tracking-wider">
-                Conversations
-              </span>
-              <button
-                type="button"
-                onClick={handleNewChat}
-                className="flex items-center gap-1 text-mini font-medium text-foreground hover:underline cursor-pointer"
-              >
-                <Plus className="w-3 h-3" /> New
-              </button>
+          <DropdownMenuContent align="start" className="w-80 p-0" onKeyDown={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-border px-3 py-2">
+              <span className="text-xs font-medium text-muted-foreground">Dialogues</span>
+              <Button size="xs" variant="ghost" onClick={handleNewChat}>
+                <SquarePen /> New
+              </Button>
             </div>
+            {chats.length > 4 && (
+              <div className="border-b border-border p-2">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={chatQuery}
+                    onChange={(e) => setChatQuery(e.target.value)}
+                    placeholder="Search dialogues…"
+                    className="h-8 pl-8 text-sm"
+                    aria-label="Search dialogues"
+                  />
+                </div>
+              </div>
+            )}
 
-            <div className="max-h-64 overflow-y-auto space-y-0.5">
-              {chats.map((c) => {
+            <div className="max-h-80 overflow-y-auto p-1">
+              {filteredChats.map((c) => {
                 const isEditing = editingChatId === c._id;
+                const isActive = activeChatId === c._id;
 
                 if (isEditing) {
                   const saveRename = async () => {
@@ -227,8 +332,8 @@ export default function ChatPanel() {
                     if (t && t !== c.title) await renameChat(c._id, t);
                   };
                   return (
-                    <div key={c._id} className="flex items-center gap-1 px-1.5 py-1" onKeyDown={(e) => e.stopPropagation()}>
-                      <input
+                    <div key={c._id} className="flex items-center gap-1 px-1.5 py-1">
+                      <Input
                         autoFocus
                         value={editTitle}
                         onChange={(e) => setEditTitle(e.target.value)}
@@ -236,14 +341,15 @@ export default function ChatPanel() {
                           if (e.key === 'Enter') saveRename();
                           if (e.key === 'Escape') setEditingChatId(null);
                         }}
-                        className="flex-1 min-w-0 px-2 py-1 rounded text-xs bg-background border border-border focus:border-foreground focus:outline-none"
+                        className="h-8 text-sm"
+                        aria-label="Dialogue name"
                       />
-                      <button type="button" onClick={saveRename} className="p-1 rounded text-foreground hover:bg-muted cursor-pointer" aria-label="Save title">
-                        <Check className="w-3.5 h-3.5" />
-                      </button>
-                      <button type="button" onClick={() => setEditingChatId(null)} className="p-1 rounded text-muted-foreground hover:bg-muted cursor-pointer" aria-label="Cancel rename">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+                      <Button size="icon-sm" variant="ghost" onClick={saveRename} aria-label="Save name">
+                        <Check />
+                      </Button>
+                      <Button size="icon-sm" variant="ghost" onClick={() => setEditingChatId(null)} aria-label="Cancel">
+                        <X />
+                      </Button>
                     </div>
                   );
                 }
@@ -251,353 +357,384 @@ export default function ChatPanel() {
                 return (
                   <div
                     key={c._id}
-                    className={`group flex items-center gap-1 pl-2.5 pr-1 py-1.5 rounded text-xs transition-colors ${
-                      activeChatId === c._id
-                        ? 'bg-muted font-medium text-foreground'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
-                    }`}
+                    className={cn(
+                      'group flex items-center gap-2 rounded-md py-1.5 pr-1 pl-2.5 transition-colors',
+                      isActive ? 'bg-accent' : 'hover:bg-accent/60'
+                    )}
                   >
-                    {c.pinned && <Pin className="w-3 h-3 text-accent flex-shrink-0" fill="currentColor" />}
                     <button
                       type="button"
-                      onClick={() => { selectChat(c._id); setMenuOpen(false); }}
-                      className="flex-1 min-w-0 text-left cursor-pointer truncate"
-                      title={c.title || 'Untitled Dialogue'}
+                      onClick={() => {
+                        selectChat(c._id);
+                        setMenuOpen(false);
+                      }}
+                      className="flex min-w-0 flex-1 items-center gap-2 text-left cursor-pointer"
+                      title={c.title || 'Untitled dialogue'}
                     >
-                      {c.title || 'Untitled Dialogue'}
+                      {c.pinned ? (
+                        <Pin className="size-3.5 shrink-0 text-primary-strong" />
+                      ) : (
+                        <MessageSquareText className="size-3.5 shrink-0 text-muted-foreground" />
+                      )}
+                      <span className={cn('flex-1 truncate text-sm', isActive ? 'font-medium text-foreground' : 'text-foreground/90')}>
+                        {c.title || 'Untitled dialogue'}
+                      </span>
+                      <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">{timeAgo(c.updatedAt || c.createdAt)}</span>
                     </button>
 
-                    {/* Per-chat actions — nested menu, portaled so it's always clickable */}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button
                           type="button"
                           onClick={(e) => e.stopPropagation()}
-                          className="p-1 rounded text-muted-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 hover:text-foreground hover:bg-muted cursor-pointer flex-shrink-0"
-                          aria-label="Dialogue actions"
+                          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-background hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 cursor-pointer"
+                          aria-label={`Actions for ${c.title || 'dialogue'}`}
                         >
-                          <MoreVertical className="w-3.5 h-3.5" />
+                          <MoreHorizontal className="size-3.5" />
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem onSelect={() => { setEditTitle(c.title || ''); setEditingChatId(c._id); }}>
-                          <Pencil className="w-3.5 h-3.5" /> Rename
+                      <DropdownMenuContent className="w-40">
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            setEditTitle(c.title || '');
+                            setEditingChatId(c._id);
+                          }}
+                        >
+                          <Pencil /> Rename
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => togglePinChat(c._id)}>
-                          <Pin className="w-3.5 h-3.5" /> {c.pinned ? 'Unpin' : 'Pin'}
+                          {c.pinned ? <PinOff /> : <Pin />} {c.pinned ? 'Unpin' : 'Pin'}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                          onSelect={() => deleteChat(c._id)}
+                          className="text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:!text-destructive"
+                          onSelect={() => {
+                            setMenuOpen(false);
+                            setPendingDelete({ id: c._id, title: c.title || 'Untitled dialogue' });
+                          }}
                         >
-                          <Trash2 className="w-3.5 h-3.5" /> Delete
+                          <Trash2 /> Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
                 );
               })}
-              {chats.length === 0 && (
-                <p className="text-mini text-muted-foreground text-center py-3">
-                  No past dialogues
-                </p>
+              {chats.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No dialogues yet</p>}
+              {chats.length > 0 && filteredChats.length === 0 && (
+                <p className="py-6 text-center text-sm text-muted-foreground">No dialogues match “{chatQuery}”.</p>
               )}
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Action icons on right */}
-        <div className="flex items-center gap-2">
-          {/* Active sources pill */}
-          <div
-            className="flex items-center gap-1 px-2 py-0.5 rounded text-micro font-medium bg-muted text-muted-foreground border border-border/60"
-            title={`${activeSourcesCount} sources currently queried`}
-          >
-            <Layers className="w-3 h-3" />
-            <span>{activeSourcesCount} active</span>
-          </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant={activeSourcesCount ? 'muted' : 'destructive'} className="hidden h-7 gap-1.5 tabular-nums sm:inline-flex">
+                <Layers /> {activeSourcesCount}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {activeSourcesCount ? `${activeSourcesCount} source${activeSourcesCount > 1 ? 's' : ''} in use` : 'No sources selected'}
+            </TooltipContent>
+          </Tooltip>
 
-          {/* New Chat Button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleNewChat}
-            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground rounded cursor-pointer"
-            title="Start a new dialogue"
-          >
-            <Plus className="w-3.5 h-3.5 mr-1" />
-            <span className="hidden sm:inline">New</span>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" onClick={handleNewChat} aria-label="New dialogue">
+                <SquarePen />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">New dialogue</TooltipContent>
+          </Tooltip>
+
+          {activeChatId && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label="Dialogue actions">
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-44">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setRenameValue(activeChat?.title || '');
+                    setRenameOpen(true);
+                  }}
+                >
+                  <Pencil /> Rename
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => togglePinChat(activeChatId)}>
+                  {activeChat?.pinned ? <PinOff /> : <Pin />} {activeChat?.pinned ? 'Unpin' : 'Pin'}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:!text-destructive"
+                  onSelect={() => setPendingDelete({ id: activeChatId, title: currentChatTitle })}
+                >
+                  <Trash2 /> Delete dialogue
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          {headerActions}
         </div>
       </div>
 
-      {/* Messages Scroll Area */}
-      <div ref={scrollRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
-        {/* Skeleton while a chat's history loads */}
+      {/* Messages */}
+      <div ref={scrollRef} onScroll={handleMessagesScroll} className="flex-1 space-y-7 overflow-y-auto px-4 py-6 md:px-5">
         {isLoadingMessages && messages.length === 0 && (
-          <div className="space-y-6 animate-fade-in" aria-hidden="true">
+          <div className="space-y-7 animate-fade-in" aria-hidden="true">
             {[0, 1].map((i) => (
-              <div key={i} className="space-y-2">
-                <div className="skeleton" style={{ width: '40%', height: '12px', marginLeft: 'auto' }} />
-                <div className="skeleton" style={{ width: '90%', height: '12px' }} />
-                <div className="skeleton" style={{ width: '80%', height: '12px' }} />
-                <div className="skeleton" style={{ width: '60%', height: '12px' }} />
+              <div key={i} className="space-y-3">
+                <div className="skeleton ml-auto h-9 w-2/5 rounded-2xl" />
+                <div className="flex gap-3">
+                  <div className="skeleton size-7 rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <div className="skeleton h-3 w-11/12" />
+                    <div className="skeleton h-3 w-4/5" />
+                    <div className="skeleton h-3 w-3/5" />
+                  </div>
+                </div>
               </div>
             ))}
           </div>
         )}
 
         {messages.length === 0 && !isStreaming && !isLoadingMessages && (
-          <div className="text-center py-12 max-w-sm mx-auto animate-fade-in-up">
-            <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3 text-muted-foreground">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <h3 className="text-sm font-semibold text-foreground mb-1">
-              {activeChatId ? (activeChat?.title || 'Research Dialogue') : 'New Research Dialogue'}
+          <div className="mx-auto flex max-w-sm animate-fade-in-up flex-col items-center py-10 text-center">
+            <span className="flex size-11 items-center justify-center rounded-xl border border-border bg-background text-brand-app shadow-xs">
+              <LeafIcon size={20} strokeWidth={2.2} />
+            </span>
+            <h3 className="mt-4 text-base font-semibold tracking-tight text-foreground">
+              {activeChatId ? activeChat?.title || 'Dialogue' : 'Ask your sources anything'}
             </h3>
-            <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+            <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
               {activeChatId
-                ? 'Ask specific questions or uncover key findings across the sources locked to this dialogue.'
-                : 'Select sources in the Library, then ask a question or explore a prompt to begin this dialogue.'}
+                ? 'Ask a question about the sources in this dialogue.'
+                : activeSourcesCount > 0
+                ? 'Answers cite the passages they come from. Try one of these to start:'
+                : 'Select one or more sources on the left, then ask a question.'}
             </p>
 
-            {/* Quick suggested prompt chips */}
-            {activeSourcesCount > 0 && (
-              <div className="flex flex-col gap-1.5 text-left">
-                <button
-                  type="button"
-                  onClick={() => sendMessageStream("Provide an executive summary of the key findings in these documents.")}
-                  className="text-xs text-muted-foreground hover:text-foreground bg-muted/40 hover:bg-muted/80 p-2 rounded-md border border-border/60 transition-colors text-left cursor-pointer"
-                >
-                  "Provide an executive summary of the key findings..."
-                </button>
-                <button
-                  type="button"
-                  onClick={() => sendMessageStream("What are the main methodologies or arguments presented?")}
-                  className="text-xs text-muted-foreground hover:text-foreground bg-muted/40 hover:bg-muted/80 p-2 rounded-md border border-border/60 transition-colors text-left cursor-pointer"
-                >
-                  "What are the main methodologies or arguments presented?"
-                </button>
-                <button
-                  type="button"
-                  onClick={() => sendMessageStream("Compare the core themes and identify any conflicting evidence.")}
-                  className="text-xs text-muted-foreground hover:text-foreground bg-muted/40 hover:bg-muted/80 p-2 rounded-md border border-border/60 transition-colors text-left cursor-pointer"
-                >
-                  "Compare the core themes and identify any conflicting evidence."
-                </button>
+            {activeSourcesCount > 0 && !isReadOnly && (
+              <div className="mt-5 flex w-full flex-col gap-2">
+                {SUGGESTIONS.map(({ icon: Icon, text }) => (
+                  <button
+                    key={text}
+                    type="button"
+                    onClick={() => sendMessageStream(text)}
+                    className="group flex items-center gap-2.5 rounded-lg border border-border bg-background px-3 py-2.5 text-left text-sm text-foreground/90 shadow-xs transition-colors hover:bg-accent cursor-pointer"
+                  >
+                    <Icon className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="flex-1">{text}</span>
+                    <ArrowRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                  </button>
+                ))}
               </div>
             )}
           </div>
         )}
 
-        {/* Existing Messages */}
         {messages.map((message, index) => {
           const isUser = message.role === 'user';
           const isLastAssistant = index === lastAssistantIndex && !isStreaming;
 
+          if (isUser) {
+            return (
+              <div key={index} className="flex animate-fade-in-up justify-end">
+                <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-muted px-4 py-2.5 text-sm leading-relaxed text-foreground">
+                  {message.content}
+                </div>
+              </div>
+            );
+          }
+
           return (
-            <div
-              key={index}
-              className={`animate-fade-in-up group ${isUser ? 'text-right' : 'text-left'}`}
-            >
-              {isUser ? (
-                <div className="inline-block text-left max-w-[85%] bg-muted/40 px-3.5 py-2.5 rounded-lg border border-border/60">
-                  <p className="text-body text-foreground" style={{ color: 'var(--chat-user)' }}>
-                    {message.content}
-                  </p>
+            <div key={index} className="group flex animate-fade-in-up gap-3">
+              <AssistantAvatar />
+              <div className="min-w-0 flex-1 space-y-2">
+                <MessageContent content={message.content} />
+                <Citations citations={message.citations} content={message.content} onSelect={handleCitationSelect} />
+
+                <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                  <ActionButton label={copiedIndex === index ? 'Copied' : 'Copy'} onClick={() => handleCopyMessage(message.content, index)}>
+                    {copiedIndex === index ? <Check className="text-success" /> : <Copy />}
+                  </ActionButton>
+                  {isLastAssistant && (
+                    <ActionButton label="Regenerate" onClick={regenerateMessage}>
+                      <RotateCcw />
+                    </ActionButton>
+                  )}
+                  <ActionButton
+                    label="Good answer"
+                    onClick={() => setMessageFeedback(index, 'up')}
+                    active={message.feedback === 'up'}
+                    activeClass="bg-success/10 text-success"
+                  >
+                    <ThumbsUp />
+                  </ActionButton>
+                  <ActionButton
+                    label="Bad answer"
+                    onClick={() => setMessageFeedback(index, 'down')}
+                    active={message.feedback === 'down'}
+                    activeClass="bg-destructive/10 text-destructive"
+                  >
+                    <ThumbsDown />
+                  </ActionButton>
                 </div>
-              ) : (
-                <div className="max-w-[95%] space-y-2">
-                  <MessageContent content={message.content} />
-
-                  {/* Numbered citations — shows only the passages the answer referenced */}
-                  <Citations
-                    citations={message.citations}
-                    content={message.content}
-                    onSelect={handleCitationSelect}
-                  />
-
-                  {/* Actions row: Copy & Regenerate */}
-                  <div className="flex items-center gap-2 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      type="button"
-                      onClick={() => handleCopyMessage(message.content, index)}
-                      className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors cursor-pointer"
-                      title="Copy response"
-                    >
-                      {copiedIndex === index ? (
-                        <Check className="w-3.5 h-3.5 text-green-600" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-
-                    {isLastAssistant && (
-                      <button
-                        type="button"
-                        onClick={regenerateMessage}
-                        className="flex items-center gap-1 text-mini text-muted-foreground hover:text-foreground py-0.5 px-1.5 rounded hover:bg-muted transition-colors cursor-pointer"
-                        title="Regenerate this response"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>Regenerate</span>
-                      </button>
-                    )}
-
-                    {/* 👍 / 👎 feedback — persisted with the trace id for evaluation */}
-                    <span className="flex items-center gap-0.5 ml-auto">
-                      <button
-                        type="button"
-                        onClick={() => setMessageFeedback(index, 'up')}
-                        className={`p-1 rounded transition-colors cursor-pointer ${
-                          message.feedback === 'up'
-                            ? 'text-green-600 bg-green-600/10'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                        }`}
-                        title="Good response"
-                        aria-label="Rate response as good"
-                        aria-pressed={message.feedback === 'up'}
-                      >
-                        <ThumbsUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMessageFeedback(index, 'down')}
-                        className={`p-1 rounded transition-colors cursor-pointer ${
-                          message.feedback === 'down'
-                            ? 'text-destructive bg-destructive/10'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                        }`}
-                        title="Bad response"
-                        aria-label="Rate response as bad"
-                        aria-pressed={message.feedback === 'down'}
-                      >
-                        <ThumbsDown className="w-3.5 h-3.5" />
-                      </button>
-                    </span>
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
           );
         })}
 
-        {/* In-Flight Streaming Message */}
         {isStreaming && (
-          <div className="text-left max-w-[95%] space-y-2 animate-fade-in-up" aria-live="polite" aria-busy="true">
-            {streamingContent ? (
-              <div>
-                <MessageContent content={streamingContent} />
-                <span className="inline-block w-1.5 h-4 ml-1 bg-foreground animate-pulse align-middle" />
-              </div>
-            ) : (
-              <div className="flex items-center gap-1 py-2">
-                <div className="thinking-dot" />
-                <div className="thinking-dot" />
-                <div className="thinking-dot" />
-              </div>
-            )}
-
-            {/* Live citations streamed during retrieval */}
-            <Citations
-              citations={streamingCitations}
-              content={streamingContent}
-              onSelect={handleCitationSelect}
-            />
+          <div className="flex animate-fade-in-up gap-3" aria-live="polite" aria-busy="true">
+            <AssistantAvatar />
+            <div className="min-w-0 flex-1 space-y-2">
+              {streamingContent ? (
+                <div>
+                  <MessageContent content={streamingContent} />
+                  <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-foreground/70 align-middle" />
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 py-1.5 text-sm text-muted-foreground">
+                  <span className="flex items-center">
+                    <span className="thinking-dot" />
+                    <span className="thinking-dot" />
+                    <span className="thinking-dot" />
+                  </span>
+                  Reading your sources…
+                </div>
+              )}
+              <Citations citations={streamingCitations} content={streamingContent} onSelect={handleCitationSelect} />
+            </div>
           </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* "New messages" pill — shown only when streaming/new content arrives while the
-          user has scrolled up. Clicking jumps to the latest. */}
       {showScrollPill && (
         <button
           type="button"
           onClick={() => scrollToBottom('smooth')}
-          className="absolute bottom-28 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-foreground text-background text-xs font-medium shadow-lg hover:opacity-90 transition-opacity cursor-pointer animate-fade-in-up"
+          className="absolute bottom-32 left-1/2 z-20 flex -translate-x-1/2 animate-fade-in-up items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground shadow-md transition-colors hover:bg-accent cursor-pointer"
         >
-          <ChevronDown className="w-3.5 h-3.5" />
-          New messages
+          <ArrowDown className="size-3.5" /> New messages
         </button>
       )}
 
-      {/* Read-only banner (all sources of this dialogue were deleted) */}
-      {isReadOnly && (
-        <div className="px-5 py-2 border-t border-border bg-muted/40 flex items-center gap-2 text-mini text-muted-foreground flex-shrink-0">
-          <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="flex-1">This dialogue is read-only — its sources were removed. You can still read it.</span>
-          <button
-            type="button"
-            onClick={handleNewChat}
-            className="font-medium text-foreground hover:underline cursor-pointer flex-shrink-0"
-          >
-            New dialogue
-          </button>
-        </div>
-      )}
+      {/* Composer */}
+      <div className="shrink-0 px-3 pt-1 pb-3 md:px-4">
+        {isReadOnly && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+            <Lock className="size-3.5 shrink-0" />
+            <span className="flex-1">Read-only: the sources for this dialogue were removed.</span>
+            <button type="button" onClick={handleNewChat} className="shrink-0 font-medium text-foreground hover:underline underline-offset-4 cursor-pointer">
+              New dialogue
+            </button>
+          </div>
+        )}
 
-      {/* Input Section */}
-      <div className="px-5 py-3 border-t border-border flex-shrink-0 bg-background">
-        <div className="flex items-end gap-2 bg-muted/20 border border-border rounded-lg p-1.5 focus-within:border-foreground/40 focus-within:ring-2 focus-within:ring-foreground/5 transition-all">
+        <div
+          className={cn(
+            'rounded-xl border border-input bg-background shadow-xs transition-[box-shadow,border-color] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/30 dark:bg-input/20',
+            composerDisabled && !isStreaming && 'opacity-70'
+          )}
+        >
           <textarea
             ref={textareaRef}
             rows={1}
             placeholder={
               isReadOnly
-                ? "This dialogue is read-only (sources removed)"
+                ? 'This dialogue is read-only'
                 : activeSourcesCount === 0
-                ? "Select sources in the library to start a dialogue..."
-                : activeChatId
-                ? "Ask about this dialogue's sources... (Shift+Enter for new line)"
-                : "Ask a question to start new dialogue... (Shift+Enter for new line)"
+                ? 'Select sources to start asking…'
+                : 'Ask a question about your sources…'
             }
             value={inputMessage}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            disabled={isStreaming || activeSourcesCount === 0 || isReadOnly}
-            className="w-full resize-none bg-transparent border-0 px-2 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-hidden leading-relaxed max-h-40 overflow-y-auto disabled:opacity-60"
+            disabled={composerDisabled}
+            aria-label="Message"
+            className="block max-h-40 min-h-11 w-full resize-none overflow-y-auto bg-transparent px-3.5 pt-3 pb-1 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
           />
-
-          {isStreaming ? (
-            <Button
-              type="button"
-              onClick={stopGeneration}
-              size="icon"
-              variant="outline"
-              className="h-8 w-8 rounded-md flex-shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10"
-              title="Stop generation"
+          <div className="flex items-center justify-between gap-2 px-2 pb-2">
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-1 text-xs',
+                activeSourcesCount === 0 ? 'text-destructive' : 'text-muted-foreground'
+              )}
             >
-              <Square className="w-3.5 h-3.5 fill-destructive" />
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              onClick={handleSendMessage}
-              disabled={!inputMessage.trim() || activeSourcesCount === 0 || isReadOnly}
-              size="icon"
-              className="h-8 w-8 rounded-md flex-shrink-0 shadow-xs"
-              title="Send message"
-            >
-              <Send className="w-3.5 h-3.5" />
-            </Button>
-          )}
-        </div>
+              <Layers className="size-3.5" />
+              {activeSourcesCount === 0
+                ? 'No sources selected'
+                : `${activeSourcesCount} source${activeSourcesCount > 1 ? 's' : ''}`}
+            </span>
 
-        {/* Footer info line */}
-        <div className="flex items-center justify-between mt-2 px-1 text-mini text-muted-foreground">
-          <span>
-            {activeSourcesCount === 0 ? (
-              <span className="text-destructive">No sources selected</span>
+            {isStreaming ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button type="button" onClick={stopGeneration} size="icon-sm" variant="outline" className="rounded-full" aria-label="Stop generating">
+                    <Square className="size-3 fill-current" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Stop (Esc)</TooltipContent>
+              </Tooltip>
             ) : (
-              <span>Grounded in {activeSourcesCount} source{activeSourcesCount > 1 ? 's' : ''}</span>
+              <Button
+                type="button"
+                onClick={handleSendMessage}
+                disabled={!inputMessage.trim() || activeSourcesCount === 0 || isReadOnly}
+                size="icon-sm"
+                className="rounded-full"
+                aria-label="Send message"
+              >
+                <ArrowUp />
+              </Button>
             )}
-          </span>
-          <span className="opacity-60 hidden sm:inline">Enter to send · Shift+Enter for new line</span>
+          </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        title="Delete this dialogue?"
+        description={pendingDelete ? `“${pendingDelete.title}” and all of its messages will be permanently deleted.` : ''}
+        confirmLabel="Delete dialogue"
+        destructive
+        onConfirm={confirmDeleteChat}
+      />
+
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rename dialogue</DialogTitle>
+            <DialogDescription>Give this dialogue a name you'll recognise later.</DialogDescription>
+          </DialogHeader>
+          <Input
+            autoFocus
+            className="mt-4"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') saveHeaderRename();
+            }}
+            aria-label="Dialogue name"
+          />
+          <div className="mt-5 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setRenameOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveHeaderRename} disabled={!renameValue.trim()}>
+              Save
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

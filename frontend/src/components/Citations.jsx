@@ -1,4 +1,4 @@
-import { FileText } from 'lucide-react';
+import { BookOpenText } from 'lucide-react';
 
 /**
  * Renders numbered, clickable citation chips under an assistant message.
@@ -22,29 +22,24 @@ export default function Citations({ citations, content = '', onSelect }) {
   const list = filtered.length > 0 ? filtered : numbered;
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-border/40">
-      <span className="text-micro font-semibold text-muted-foreground uppercase tracking-wider">
-        Citations:
-      </span>
+    <div className="flex flex-wrap items-center gap-1.5 pt-1">
       {list.slice(0, 6).map((c) => (
         <button
           key={c.n}
           type="button"
           onClick={() => onSelect?.(c)}
-          className="inline-flex items-center gap-1 text-mini px-2 py-0.5 rounded bg-muted/60 text-foreground border border-border/60 hover:bg-muted hover:border-foreground/30 transition-colors cursor-pointer"
+          className="inline-flex h-6 items-center gap-1.5 rounded-md border border-border bg-background px-2 text-xs text-foreground shadow-xs transition-colors hover:bg-accent cursor-pointer"
           title={c.snippet ? `"${c.snippet}"` : undefined}
           aria-label={`Open source ${c.originalFileName || 'document'}${c.pageNumber ? `, page ${c.pageNumber}` : ''}`}
         >
-          <span className="font-mono text-micro text-muted-foreground">[{c.n}]</span>
-          <FileText className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-          <span className="truncate max-w-[140px]">{c.originalFileName || 'Document'}</span>
-          {c.pageNumber && (
-            <span className="text-muted-foreground font-mono text-micro">p.{c.pageNumber}</span>
-          )}
+          <span className="flex size-4 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground tabular-nums">{c.n}</span>
+          <BookOpenText className="size-3 shrink-0 text-muted-foreground" />
+          <span className="max-w-[140px] truncate">{c.originalFileName || 'Document'}</span>
+          {c.pageNumber && <span className="text-muted-foreground tabular-nums">p.{c.pageNumber}</span>}
         </button>
       ))}
       {list.length > 6 && (
-        <span className="text-micro text-muted-foreground">+{list.length - 6} more</span>
+        <span className="text-xs text-muted-foreground">+{list.length - 6} more</span>
       )}
     </div>
   );

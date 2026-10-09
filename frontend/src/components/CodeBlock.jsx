@@ -67,12 +67,10 @@ export default function CodeBlock({ children, className, language }) {
   };
 
   return (
-    <div className="relative group my-4 border border-border rounded-lg overflow-hidden">
+    <div className="group relative my-4 overflow-hidden rounded-lg border border-border bg-muted/40">
       {/* Language label + copy button */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/30">
-        <span className="text-label text-muted-foreground" style={{ fontSize: '10px' }}>
-          {language?.toUpperCase() || 'CODE'}
-        </span>
+      <div className="flex items-center justify-between border-b border-border bg-muted/60 px-3 py-1.5">
+        <span className="font-mono text-xs text-muted-foreground">{language?.toLowerCase() || 'code'}</span>
         <button
           onClick={handleCopy}
           className={cn(
@@ -82,8 +80,8 @@ export default function CodeBlock({ children, className, language }) {
         >
           {copied ? (
             <>
-              <Check className="h-3 w-3 text-green-500" />
-              <span className="text-green-500">Copied</span>
+              <Check className="h-3 w-3 text-success" />
+              <span className="text-success">Copied</span>
             </>
           ) : (
             <>
@@ -99,10 +97,11 @@ export default function CodeBlock({ children, className, language }) {
         customStyle={{
           margin: 0,
           borderRadius: 0,
-          fontSize: 'var(--font-size-sm)',
+          fontSize: '13px',
+          fontFamily: 'var(--font-mono)',
           lineHeight: '1.6',
           padding: '16px',
-          background: theme === 'dark' ? '#1A1A1A' : '#FAFAF8',
+          background: 'transparent',
         }}
         className={className}
       >

@@ -30,7 +30,7 @@ function DialogContent({ className, children, showClose = true, ...props }) {
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 border-popover-border bg-popover p-6 text-popover-foreground shadow-lg outline-none",
+          "fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-popover p-6 text-popover-foreground shadow-lg outline-none",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           className
         )}
@@ -58,7 +58,7 @@ function SheetContent({ className, children, ...props }) {
       <DialogPrimitive.Content
         data-slot="sheet-content"
         className={cn(
-          "fixed inset-y-0 right-0 z-50 flex h-full w-full flex-col border-l-2 border-popover-border bg-popover text-popover-foreground shadow-xl outline-none sm:w-[540px]",
+          "fixed inset-y-0 right-0 z-50 flex h-full w-full flex-col border-l border-border bg-popover text-popover-foreground shadow-xl outline-none sm:w-[540px]",
           "data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right",
           className
         )}
@@ -78,7 +78,7 @@ function DialogTitle({ className, ...props }) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("font-heading text-xl font-semibold tracking-tight", className)}
+      className={cn("text-lg font-semibold tracking-tight", className)}
       {...props}
     />
   )
@@ -98,7 +98,7 @@ function DialogFooter({ className, ...props }) {
   return (
     <div
       data-slot="dialog-footer"
-      className={cn("-mx-6 -mb-6 mt-6 flex justify-end gap-2 rounded-b-xl border-t-2 border-popover-border bg-muted/50 px-6 py-4", className)}
+      className={cn("-mx-6 -mb-6 mt-6 flex justify-end gap-2 rounded-b-xl border-t border-border bg-muted/50 px-6 py-4", className)}
       {...props}
     />
   )

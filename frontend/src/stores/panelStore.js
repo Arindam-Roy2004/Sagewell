@@ -3,8 +3,8 @@ import { create } from 'zustand';
 const STORAGE_KEY = 'sagewell-panels';
 
 const defaults = {
-  sourceWidth: 260,
-  chatWidth: 340,
+  sourceWidth: 290,
+  chatWidth: 380,
   sourceCollapsed: false,
   chatCollapsed: false,
   fullscreenPanel: null, // 'source' | 'content' | 'chat' | null

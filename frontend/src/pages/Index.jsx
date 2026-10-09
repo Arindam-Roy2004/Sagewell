@@ -6,25 +6,22 @@ import AuthForm from '../components/AuthForm';
 import Header from '../components/Header';
 import WorkspaceLayout from '../components/WorkspaceLayout';
 import CommandPalette from '../components/CommandPalette';
+import LeafIcon from '../components/icons/leaf-icon';
+import { Loader2 } from 'lucide-react';
 
 // The marketing landing page is large and only shown to logged-out visitors on "/".
 // Lazy-load it so it isn't bundled into the authenticated workspace's critical path.
 const LandingPage = lazy(() => import('./LandingPage'));
 
 const LoadingScreen = () => (
-  <div className="min-h-screen bg-background flex items-center justify-center">
-    <div className="flex flex-col items-center gap-4 animate-fade-in">
-      <img
-        src="/logo.png"
-        alt="Sagewell Logo"
-        className="w-12 h-12 object-contain animate-pulse drop-shadow-sm dark:drop-shadow-[0_4px_16px_rgba(255,255,255,0.18)] select-none"
-      />
-      <div className="flex gap-1 mt-1">
-        <div className="thinking-dot"></div>
-        <div className="thinking-dot"></div>
-        <div className="thinking-dot"></div>
+  <div className="flex min-h-screen items-center justify-center bg-background">
+    <div className="flex animate-fade-in flex-col items-center gap-4">
+      <span className="flex size-12 items-center justify-center rounded-xl border border-border bg-background text-brand-app shadow-sm">
+        <LeafIcon size={22} strokeWidth={2.2} />
+      </span>
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" /> Opening your workspace…
       </div>
-      <span className="text-meta text-muted-foreground tracking-wide uppercase text-xs">Loading Workspace</span>
     </div>
   </div>
 );
@@ -83,8 +80,8 @@ const Index = () => {
 
   // Authenticated — show workspace
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
-      <Header />
+    <div className="flex h-screen flex-col overflow-hidden bg-sidebar">
+      <Header onOpenPalette={() => setPaletteOpen(true)} />
       <WorkspaceLayout />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>

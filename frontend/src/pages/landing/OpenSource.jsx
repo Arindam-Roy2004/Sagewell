@@ -1,4 +1,4 @@
-import { Github, GitPullRequest, Star, CircleDot } from "lucide-react";
+import { Github, GitPullRequest, GitFork, CircleDot } from "lucide-react";
 import { Rails, Rule, BandLabel, Reveal, LpButton } from "./primitives";
 import LogoGrid from "./LogoGrid";
 import { OPEN_SOURCE, REPO_URL } from "./content";
@@ -19,7 +19,7 @@ function RepoCard() {
       </div>
       <div className="mt-6 flex flex-wrap gap-4 text-[13px] text-lp-text">
         <span className="flex items-center gap-1.5"><CircleDot className="size-3.5 text-brand" /> JavaScript</span>
-        <span className="flex items-center gap-1.5"><Star className="size-3.5" /> Star</span>
+        <span className="flex items-center gap-1.5"><GitFork className="size-3.5" /> Fork</span>
         <span className="flex items-center gap-1.5"><GitPullRequest className="size-3.5" /> Pull requests welcome</span>
       </div>
     </div>

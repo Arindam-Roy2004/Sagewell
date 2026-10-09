@@ -1,38 +1,86 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
 import {
-  FileText,
-  Link,
   Loader2,
-  AlertCircle,
+  CircleAlert,
   ExternalLink,
-  FileType,
-  FileSpreadsheet,
   Upload,
-  X,
-  HelpCircle,
+  CircleHelp,
+  AlignLeft,
+  BookOpenText,
+  MoreHorizontal,
+  Trash2,
+  Globe,
+  FileQuestion,
+  Library,
+  MessageSquareText,
+  Quote,
+  CalendarDays,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import { useSourceStore } from '../stores/sourceStore';
 import { axiosInstance } from '../lib/axios';
+import { getSourceMeta, getSourceName } from './workspace/source-meta';
+import { SourceIcon, SourceStatus } from './workspace/source-badges';
 
-const SkeletonLine = ({ width = '100%', height = '12px' }) => (
-  <div className="skeleton" style={{ width, height, marginBottom: '8px' }} />
-);
+const STEPS = [
+  { icon: Library, title: "Add sources", text: "Upload PDF, Word, CSV or text files, paste notes, or add a web page from the Sources panel." },
+  { icon: MessageSquareText, title: "Ask questions", text: "Select the sources to use, then ask in the Dialogue panel. Follow-up questions keep the context." },
+  { icon: Quote, title: "Check citations", text: "Answers number the passages they used. Click a citation to open the source at that spot." },
+];
 
-export default function ContentPanel() {
-  const { selectedSource, getViewUrl, citationJump } = useSourceStore();
+const TABS = [
+  { key: "summary", label: "Summary", icon: AlignLeft },
+  { key: "document", label: "Document", icon: BookOpenText },
+];
+
+function statusMessage(status) {
+  switch (status) {
+    case 'uploading': return 'Uploading the file…';
+    case 'queued': return 'Waiting to be processed…';
+    case 'processing': return 'Reading and summarising…';
+    default: return 'Processing source…';
+  }
+}
+
+/** Centered message used by the empty and error states of the document tab. */
+function Placeholder({ icon: Icon, title, text, children, tone = "muted" }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+      <span
+        className={cn(
+          "flex size-11 items-center justify-center rounded-xl border",
+          tone === "error" ? "border-destructive/30 bg-destructive/5 text-destructive" : "border-border bg-muted/50 text-muted-foreground"
+        )}
+      >
+        <Icon className="size-5" />
+      </span>
+      {title && <p className="mt-4 text-sm font-medium text-foreground">{title}</p>}
+      {text && <p className="mt-1 max-w-xs text-sm text-muted-foreground">{text}</p>}
+      {children && <div className="mt-4">{children}</div>}
+    </div>
+  );
+}
+
+export default function ContentPanel({ headerActions }) {
+  const { selectedSource, getViewUrl, citationJump, deleteSource } = useSourceStore();
   const [isLoadingViewUrl, setIsLoadingViewUrl] = useState(false);
   const [activeTab, setActiveTab] = useState('summary');
   const [showTutorial, setShowTutorial] = useState(false);
   const [viewerPage, setViewerPage] = useState(1);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const tabs = ['SUMMARY', 'DOCUMENT'];
   const sourceId = selectedSource?._id || selectedSource?.id;
   const type = selectedSource?.type;
   const isFileType = selectedSource && ['pdf', 'docx', 'csv', 'text'].includes(type);
   // Which sources can render inside an <iframe> in the browser.
   const isEmbeddable = ['pdf', 'text', 'csv'].includes(type);
+  const webUrl = selectedSource?.rawURL || selectedSource?.webURL;
+  const canOpenOriginal = isFileType && selectedSource?.status === 'completed' && selectedSource?.s3Key;
 
   // When a citation is clicked, jump to the Document tab at the cited page.
   useEffect(() => {
@@ -42,7 +90,7 @@ export default function ContentPanel() {
     }
   }, [citationJump, sourceId]);
 
-  // Reset to the summary when switching sources.
+  // Reset the page when switching sources.
   useEffect(() => {
     setViewerPage(1);
   }, [sourceId]);
@@ -59,18 +107,8 @@ export default function ContentPanel() {
     },
   });
 
-  const getSourceIcon = (t) => {
-    switch (t) {
-      case 'pdf': return <FileText className="w-4 h-4" style={{ color: 'var(--accent)' }} />;
-      case 'docx': return <FileType className="w-4 h-4" style={{ color: 'var(--accent)' }} />;
-      case 'csv': return <FileSpreadsheet className="w-4 h-4" style={{ color: 'var(--accent)' }} />;
-      case 'link': return <Link className="w-4 h-4 text-muted-foreground" />;
-      default: return <FileText className="w-4 h-4 text-muted-foreground" />;
-    }
-  };
-
   const formatDate = (dateString) =>
-    new Date(dateString).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    new Date(dateString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
   const handleViewFile = async () => {
     if (!sourceId) return;
@@ -80,293 +118,299 @@ export default function ContentPanel() {
     if (url) window.open(url, '_blank');
   };
 
-  const getStatusMessage = (status) => {
-    switch (status) {
-      case 'uploading': return 'Uploading to cloud...';
-      case 'queued': return 'Waiting in queue...';
-      case 'processing': return 'Analyzing content...';
-      default: return 'Processing source...';
-    }
+  const openOriginal = () => {
+    if (type === 'link' && webUrl) window.open(webUrl, '_blank', 'noopener');
+    else handleViewFile();
   };
 
-  // ── Document viewer tab ──────────────────────────────────────────────────────
+  // ── Document tab ────────────────────────────────────────────────────────────
   const renderDocument = () => {
     if (!selectedSource) {
-      return (
-        <div className="flex-1 flex items-center justify-center text-center px-6">
-          <p className="text-meta text-muted-foreground">Select a source to view its document.</p>
-        </div>
-      );
+      return <Placeholder icon={BookOpenText} title="No source selected" text="Choose a source on the left to read it here." />;
     }
 
-    // Web links: embedding is usually blocked by the site, so offer to open it.
+    // Web pages usually block embedding, so offer to open them.
     if (type === 'link') {
-      const url = selectedSource.rawURL || selectedSource.webURL;
       return (
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-6 gap-3">
-          <Link className="w-8 h-8 text-muted-foreground/50" />
-          <p className="text-meta text-muted-foreground max-w-xs">Web sources open in a new tab.</p>
-          <Button asChild variant="outline" size="sm" className="text-xs">
-            <a href={url} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Open web source
+        <Placeholder icon={Globe} title="Web pages open in a new tab" text="Most sites don't allow being shown inside another page.">
+          <Button asChild variant="outline" size="sm">
+            <a href={webUrl} target="_blank" rel="noopener noreferrer">
+              <ExternalLink /> Open web page
             </a>
           </Button>
-        </div>
+        </Placeholder>
       );
     }
 
     if (!isEmbeddable || !selectedSource.s3Key) {
       return (
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-6 gap-3">
-          <FileType className="w-8 h-8 text-muted-foreground/50" />
-          <p className="text-meta text-muted-foreground max-w-xs">
-            In-browser preview isn't available for this file type.
-          </p>
-          <Button variant="outline" size="sm" onClick={handleViewFile} disabled={isLoadingViewUrl} className="text-xs">
-            {isLoadingViewUrl ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5 mr-1.5" />}
-            Open original
+        <Placeholder icon={FileQuestion} title="No preview for this file type" text="Open the original file to read it.">
+          <Button variant="outline" size="sm" onClick={handleViewFile} disabled={isLoadingViewUrl}>
+            {isLoadingViewUrl ? <Loader2 className="animate-spin" /> : <ExternalLink />} Open original
           </Button>
-        </div>
+        </Placeholder>
       );
     }
 
     if (selectedSource.status !== 'completed') {
       return (
-        <div className="flex-1 flex items-center justify-center text-center px-6">
-          <p className="text-meta text-muted-foreground">{getStatusMessage(selectedSource.status)}</p>
+        <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" /> {statusMessage(selectedSource.status)}
         </div>
       );
     }
 
     if (isViewLoading) {
       return (
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
         </div>
       );
     }
     if (isViewError || !viewUrl) {
       return (
-        <div className="flex-1 flex items-center justify-center text-center px-6">
-          <p className="text-meta text-destructive">Couldn't load the document. Try “Open original”.</p>
-        </div>
+        <Placeholder icon={CircleAlert} tone="error" title="Couldn't load the document" text="Try opening the original file instead.">
+          <Button variant="outline" size="sm" onClick={handleViewFile} disabled={isLoadingViewUrl}>
+            <ExternalLink /> Open original
+          </Button>
+        </Placeholder>
       );
     }
 
     // PDFs support the #page fragment to jump to the cited page.
     const src = type === 'pdf' ? `${viewUrl}#page=${viewerPage}` : viewUrl;
     return (
-      <div className="flex-1 min-h-0">
-        <iframe
-          key={`${sourceId}-${viewerPage}`}
-          title={selectedSource.title || 'Document'}
-          src={src}
-          className="w-full h-full border-0 bg-muted/20"
-        />
+      <div className="min-h-0 flex-1 bg-muted/40">
+        <iframe key={`${sourceId}-${viewerPage}`} title={getSourceName(selectedSource)} src={src} className="h-full w-full border-0" />
+      </div>
+    );
+  };
+
+  // ── Summary tab ─────────────────────────────────────────────────────────────
+  const renderSummary = () => {
+    if (!selectedSource) {
+      return (
+        <div className="flex flex-1 items-center justify-center overflow-y-auto px-6 py-10">
+          <div className="w-full max-w-lg animate-fade-in-up text-center">
+            <span className="mx-auto flex size-12 items-center justify-center rounded-xl border border-border bg-muted/50 shadow-xs">
+              <BookOpenText className="size-5 text-muted-foreground" />
+            </span>
+            <h2 className="mt-5 text-xl font-semibold tracking-tight text-foreground">Start with a source</h2>
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
+              Add a document, a web page or some notes. Sagewell summarises it, and you can ask questions with answers that cite the
+              exact passage.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+              <Button onClick={() => document.getElementById('file-upload')?.click()}>
+                <Upload /> Upload a file
+              </Button>
+              <Button variant="outline" onClick={() => setShowTutorial(true)}>
+                <CircleHelp /> How it works
+              </Button>
+            </div>
+            <div className="mt-10 grid gap-3 text-left sm:grid-cols-3">
+              {STEPS.map(({ icon: Icon, title }, i) => (
+                <div key={title} className="rounded-lg border border-border bg-background p-3 shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="flex size-6 items-center justify-center rounded-md bg-muted text-xs font-medium text-muted-foreground tabular-nums">
+                      {i + 1}
+                    </span>
+                    <Icon className="size-4 text-muted-foreground" />
+                  </div>
+                  <p className="mt-2 text-sm font-medium text-foreground">{title}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const isWorking = ['uploading', 'queued', 'processing'].includes(selectedSource.status);
+
+    return (
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-2xl px-6 py-8 md:px-10">
+          <div className="flex items-start gap-3">
+            <SourceIcon type={type} className="size-10" iconClassName="size-5" />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span>{getSourceMeta(type).label}</span>
+                {selectedSource.createdAt && (
+                  <span className="inline-flex items-center gap-1">
+                    <CalendarDays className="size-3" /> {formatDate(selectedSource.createdAt)}
+                  </span>
+                )}
+                <SourceStatus status={selectedSource.status} showReady />
+              </div>
+              <h1 className="mt-1.5 text-2xl font-semibold leading-tight tracking-tight text-foreground">{getSourceName(selectedSource)}</h1>
+              {webUrl && (
+                <a
+                  href={webUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex max-w-full items-center gap-1 truncate text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                >
+                  <ExternalLink className="size-3.5 shrink-0" />
+                  <span className="truncate">{webUrl}</span>
+                </a>
+              )}
+            </div>
+          </div>
+
+          {canOpenOriginal && (
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              {isEmbeddable && (
+                <Button variant="outline" size="sm" onClick={() => setActiveTab('document')}>
+                  <BookOpenText /> Read document
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={handleViewFile} disabled={isLoadingViewUrl}>
+                {isLoadingViewUrl ? <Loader2 className="animate-spin" /> : <ExternalLink />} Open original
+              </Button>
+            </div>
+          )}
+
+          <div className="mt-8 border-t border-border pt-6">
+            <p className="text-label text-muted-foreground">Summary</p>
+
+            {selectedSource.status === 'completed' && selectedSource.summary && (
+              <p className="mt-3 animate-fade-in-up whitespace-pre-wrap text-[15px] leading-7 text-foreground/90">{selectedSource.summary}</p>
+            )}
+
+            {selectedSource.status === 'completed' && !selectedSource.summary && (
+              <p className="mt-3 text-sm text-muted-foreground">This source was processed, but no summary is available.</p>
+            )}
+
+            {selectedSource.status === 'failed' && (
+              <div className="mt-3 flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+                <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
+                <div>
+                  <p className="text-sm font-medium text-destructive">Processing failed</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {selectedSource.errorMessage || "Something went wrong while reading this source."}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {isWorking && (
+              <div className="mt-4 animate-fade-in-up">
+                <div className="space-y-2.5">
+                  {['w-11/12', 'w-full', 'w-3/4', 'w-5/6', 'w-3/5'].map((w) => (
+                    <div key={w} className={`skeleton h-3.5 ${w}`} />
+                  ))}
+                </div>
+                <div className="mt-5 flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" /> {statusMessage(selectedSource.status)}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     );
   };
 
   return (
-    <div className="h-full bg-background flex flex-col">
-      {/* Content Area */}
-      {activeTab === 'document' ? (
-        renderDocument()
-      ) : !selectedSource ? (
-        /* Empty State */
-        <div className="flex-1 flex items-center justify-center px-6">
-          <div className="text-center max-w-md animate-fade-in-up">
-            <p className="text-label mb-4" style={{ color: 'var(--accent)', fontSize: '11px' }}>
-              INTELLECT SYNTHESIS
-            </p>
-            <h2 className="text-foreground mb-6" style={{ fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 'var(--font-weight-semibold)', letterSpacing: '-0.03em', lineHeight: '1.1' }}>
-              BEGIN THE<br />DIALOGUE.
-            </h2>
-            <p className="text-body text-muted-foreground mb-8 leading-relaxed">
-              The synthesis engine requires a foundation. Ingest a document, research paper, or URL via the sidebar to initiate the extraction of editorial insights.
-            </p>
-            <div className="flex items-center justify-center gap-3">
-              <Button variant="outline" onClick={() => setShowTutorial(true)} className="text-sm font-medium shadow-xs">
-                <HelpCircle className="w-4 h-4 mr-2" />
-                View Tutorial
-              </Button>
-              <Button onClick={() => document.getElementById('file-upload')?.click()} className="text-sm font-medium shadow-xs">
-                <Upload className="w-4 h-4 mr-2" />
-                Upload File
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* Selected Source Summary State */
-        <div className="flex-1 overflow-y-auto px-8 py-8 md:px-12">
-          <div className="max-w-2xl mx-auto">
-            {/* Source header info */}
-            <div className="mb-10">
-              <div className="flex items-center gap-2 mb-4">
-                {getSourceIcon(type)}
-                <span className="text-label text-muted-foreground" style={{ fontSize: '11px' }}>
-                  {type?.toUpperCase()} · {formatDate(selectedSource.createdAt)}
-                </span>
-                <div className={`w-1.5 h-1.5 rounded-full ml-1 ${
-                  selectedSource.status === 'completed' ? 'bg-green-500' :
-                  selectedSource.status === 'failed' ? 'bg-destructive' :
-                  'animate-pulse'
-                }`} style={selectedSource.status !== 'completed' && selectedSource.status !== 'failed' ? { background: 'var(--accent)' } : {}} />
-              </div>
-              <h1 className="text-foreground leading-tight mb-4" style={{ fontSize: 'clamp(24px, 3vw, 36px)', fontWeight: 'var(--font-weight-semibold)', letterSpacing: '-0.02em', lineHeight: '1.15' }}>
-                {selectedSource.title || selectedSource.originalFileName || `${type} Source`}
-              </h1>
-
-              {(selectedSource.rawURL || selectedSource.webURL) && (
-                <a
-                  href={selectedSource.rawURL || selectedSource.webURL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-meta text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1 underline-offset-4 hover:underline"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  {selectedSource.rawURL || selectedSource.webURL}
-                </a>
-              )}
-
-              {isFileType && selectedSource.status === 'completed' && selectedSource.s3Key && (
-                <div className="mt-4 flex items-center gap-2">
-                  {isEmbeddable && (
-                    <Button variant="outline" size="sm" onClick={() => setActiveTab('document')} className="text-xs font-medium border-border hover:bg-muted shadow-xs">
-                      <FileText className="w-3.5 h-3.5 mr-1.5" />
-                      View Document
-                    </Button>
-                  )}
-                  <Button variant="outline" size="sm" onClick={handleViewFile} disabled={isLoadingViewUrl} className="text-xs font-medium border-border hover:bg-muted shadow-xs">
-                    {isLoadingViewUrl ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5 mr-1.5" />}
-                    Open Original
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {selectedSource.status === 'completed' && selectedSource.summary && (
-              <div className="animate-fade-in-up">
-                <p className="text-foreground text-body leading-relaxed whitespace-pre-wrap">
-                  {selectedSource.summary}
-                </p>
-              </div>
-            )}
-
-            {selectedSource.status === 'failed' && (
-              <div className="border border-destructive/20 p-6 animate-fade-in-up" style={{ borderRadius: '2px' }}>
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h3 className="text-meta font-semibold text-destructive mb-1">Processing Failed</h3>
-                    <p className="text-meta text-muted-foreground">
-                      {selectedSource.errorMessage || "An unknown error occurred during processing."}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {(selectedSource.status === 'uploading' || selectedSource.status === 'queued' || selectedSource.status === 'processing') && (
-              <div className="py-8 animate-fade-in-up">
-                <div className="space-y-3 mb-6">
-                  <SkeletonLine width="90%" height="14px" />
-                  <SkeletonLine width="100%" height="14px" />
-                  <SkeletonLine width="75%" height="14px" />
-                  <SkeletonLine width="85%" height="14px" />
-                  <SkeletonLine width="60%" height="14px" />
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <div className="thinking-dot" />
-                  <div className="thinking-dot" />
-                  <div className="thinking-dot" />
-                  <span className="text-meta ml-2">{getStatusMessage(selectedSource.status)}</span>
-                </div>
-              </div>
-            )}
-
-            {selectedSource.status === 'completed' && !selectedSource.summary && (
-              <div className="text-center py-12">
-                <p className="text-meta text-muted-foreground">Source processed. No summary available.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Tab bar */}
-      <div className="flex border-t border-border flex-shrink-0">
-        {tabs.map((tab) => {
-          const tabKey = tab.toLowerCase();
-          const isActive = activeTab === tabKey;
-          return (
+    <div className="flex h-full flex-col bg-background">
+      {/* Header */}
+      <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border pr-2 pl-3">
+        <div className="flex items-center gap-0.5 rounded-lg bg-muted p-0.5" role="tablist" aria-label="View">
+          {TABS.map(({ key, label, icon: Icon }) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tabKey)}
-              className={`flex-1 py-3 text-center transition-colors cursor-pointer ${
-                isActive
-                  ? 'text-foreground border-t-2 border-foreground -mt-px font-semibold'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-              style={{ fontSize: '11px', letterSpacing: '0.06em' }}
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === key}
+              onClick={() => setActiveTab(key)}
+              className={cn(
+                "flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-all cursor-pointer",
+                activeTab === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
             >
-              {tab}
+              <Icon className="size-3.5" /> {label}
             </button>
-          );
-        })}
+          ))}
+        </div>
+
+        <div className="flex items-center gap-1">
+          {selectedSource && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label="Source actions">
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-44">
+                {(canOpenOriginal || webUrl) && (
+                  <DropdownMenuItem onSelect={openOriginal}>
+                    <ExternalLink /> Open original
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onSelect={() => setShowTutorial(true)}>
+                  <CircleHelp /> How it works
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:!text-destructive"
+                  onSelect={() => setConfirmDelete(true)}
+                >
+                  <Trash2 /> Delete source
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          {headerActions}
+        </div>
       </div>
 
-      {/* Tutorial Modal */}
-      {showTutorial && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fade-in-up">
-          <div className="bg-card text-card-foreground border border-border rounded-xl max-w-lg w-full p-8 shadow-xl relative">
-            <button
-              onClick={() => setShowTutorial(false)}
-              className="absolute top-5 right-5 text-muted-foreground hover:text-foreground p-1.5 rounded-lg hover:bg-muted/60 transition-colors cursor-pointer"
-              aria-label="Close tutorial"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <p className="text-label mb-2" style={{ color: 'var(--accent)', fontSize: '11px' }}>
-              SYSTEM ARCHITECTURE
-            </p>
-            <h3 className="text-foreground text-display mb-6">How Sagewell Works</h3>
-            <div className="space-y-6 text-left mb-8">
-              <div className="flex gap-4">
-                <div className="w-7 h-7 border border-border rounded-md flex items-center justify-center flex-shrink-0 text-meta font-semibold" style={{ color: 'var(--accent)' }}>1</div>
+      {activeTab === 'document' ? renderDocument() : renderSummary()}
+
+      {/* How it works */}
+      <Dialog open={showTutorial} onOpenChange={setShowTutorial}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>How Sagewell works</DialogTitle>
+            <DialogDescription>Three steps from a pile of documents to answers you can check.</DialogDescription>
+          </DialogHeader>
+          <ol className="mt-6 space-y-5">
+            {STEPS.map(({ icon: Icon, title, text }, i) => (
+              <li key={title} className="flex gap-3.5">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/50">
+                  <Icon className="size-4 text-muted-foreground" />
+                </span>
                 <div>
-                  <h4 className="text-foreground text-meta font-semibold mb-1">Ingest Source Material</h4>
-                  <p className="text-muted-foreground text-meta leading-relaxed">
-                    Upload documents (PDF, DOCX, CSV, TXT), paste notes, or insert web links in the left panel. Sources are automatically vectorized and indexed.
+                  <p className="text-sm font-medium text-foreground">
+                    {i + 1}. {title}
                   </p>
+                  <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{text}</p>
                 </div>
-              </div>
-              <div className="flex gap-4">
-                <div className="w-7 h-7 border border-border rounded-md flex items-center justify-center flex-shrink-0 text-meta font-semibold" style={{ color: 'var(--accent)' }}>2</div>
-                <div>
-                  <h4 className="text-foreground text-meta font-semibold mb-1">Synthesize Insights</h4>
-                  <p className="text-muted-foreground text-meta leading-relaxed">
-                    Once processed, select any source to inspect its AI-generated executive summary, or open the Document tab to read the original.
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-4">
-                <div className="w-7 h-7 border border-border rounded-md flex items-center justify-center flex-shrink-0 text-meta font-semibold" style={{ color: 'var(--accent)' }}>3</div>
-                <div>
-                  <h4 className="text-foreground text-meta font-semibold mb-1">Conduct Grounded Dialogue</h4>
-                  <p className="text-muted-foreground text-meta leading-relaxed">
-                    Use the right panel to question your sources. Click a citation to jump to the exact page in the Document tab.
-                  </p>
-                </div>
-              </div>
-            </div>
-            <Button className="w-full text-sm font-medium shadow-xs" onClick={() => setShowTutorial(false)}>
-              Understood
-            </Button>
-          </div>
-        </div>
-      )}
+              </li>
+            ))}
+          </ol>
+          <Button className="mt-7 w-full" onClick={() => setShowTutorial(false)}>
+            Got it
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete this source?"
+        description={
+          selectedSource
+            ? `“${getSourceName(selectedSource)}” and its passages will be removed. Dialogues that relied only on it become read-only.`
+            : ''
+        }
+        confirmLabel="Delete source"
+        destructive
+        onConfirm={async () => {
+          setConfirmDelete(false);
+          if (sourceId) await deleteSource(sourceId);
+        }}
+      />
     </div>
   );
 }

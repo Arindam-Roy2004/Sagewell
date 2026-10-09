@@ -14,7 +14,7 @@ import CodeBlock from './CodeBlock';
  */
 export default function MessageContent({ content }) {
   return (
-    <div className="markdown-content text-sm leading-relaxed text-foreground break-words">
+    <div className="markdown-content text-sm leading-relaxed text-foreground/90 break-words">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -40,7 +40,7 @@ export default function MessageContent({ content }) {
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-accent underline underline-offset-2 hover:opacity-80"
+              className="text-primary-strong underline underline-offset-2 hover:opacity-80"
             >
               {children}
             </a>

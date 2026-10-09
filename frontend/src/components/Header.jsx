@@ -1,92 +1,115 @@
+import { useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from "@/components/ui/button";
-import { LogOut, User, Sun, Moon, Activity } from "lucide-react";
+import { Search, LogOut, LayoutDashboard, ChevronRight, Command, Github } from 'lucide-react';
+import { Avatar, Kbd } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { useAuthStore } from '../stores/authStore';
-import { useThemeStore } from '../stores/themeStore';
+import { useChatStore } from '../stores/chatStore';
+import ThemeToggle from './ThemeToggle';
+import LeafIcon from './icons/leaf-icon';
 
 // Optional: same email as ADMIN_EMAIL in backend/.env. Users with role "admin" always qualify.
 const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || '';
+const REPO_URL = 'https://github.com/Arindam-Roy2004/Sagewell';
 
-export default function Header() {
+export default function Header({ onOpenPalette }) {
   const navigate = useNavigate();
+  const iconRef = useRef(null);
   const { authUser, logout } = useAuthStore();
-  const { theme, toggleTheme } = useThemeStore();
+  const activeChat = useChatStore((s) => s.activeChat);
+  const activeChatId = useChatStore((s) => s.activeChatId);
 
   const isAdmin =
     authUser?.role === 'admin' ||
     (ADMIN_EMAIL && authUser?.email?.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase());
+  const chatTitle = activeChat?.title || (activeChatId ? 'Current dialogue' : 'New dialogue');
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
   return (
-    <header className="h-12 bg-background border-b border-border flex items-center justify-between px-6 flex-shrink-0">
-      {/* Brand Identity */}
-      <div 
-        onClick={() => navigate('/workspace')} 
-        className="flex items-center gap-2.5 cursor-pointer group select-none"
-        title="Sagewell Workspace"
-      >
-        <img
-          src="/logo.png"
-          alt="Sagewell Logo"
-          className="w-7 h-7 object-contain drop-shadow-xs dark:drop-shadow-[0_2px_8px_rgba(255,255,255,0.15)] group-hover:scale-105 transition-transform duration-200 flex-shrink-0"
-        />
-        <div className="flex items-center gap-1.5">
-          <span className="text-foreground tracking-tight font-semibold text-sm group-hover:text-foreground/90 transition-colors">Sagewell</span>
-          <span className="text-micro font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground border border-border/60">
-            LM
-          </span>
-        </div>
-        <div className="h-3.5 w-px bg-border mx-1 hidden sm:block" />
-        <span className="text-xs text-muted-foreground hidden sm:block font-normal">
-          Research Workspace
-        </span>
+    <header className="flex h-14 shrink-0 items-center justify-between gap-3 px-4">
+      {/* Brand + breadcrumb */}
+      <div className="flex min-w-0 items-center gap-2">
+        <button
+          type="button"
+          onClick={() => navigate('/workspace')}
+          onMouseEnter={() => iconRef.current?.startAnimation()}
+          onMouseLeave={() => iconRef.current?.stopAnimation()}
+          className="flex shrink-0 items-center gap-2 rounded-md px-1.5 py-1 text-foreground transition-colors hover:bg-accent cursor-pointer"
+          aria-label="Sagewell workspace"
+        >
+          <LeafIcon ref={iconRef} size={18} strokeWidth={2.4} className="text-brand-app" />
+          <span className="text-[15px] font-semibold tracking-tight">Sagewell</span>
+        </button>
+        <ChevronRight className="hidden size-4 shrink-0 text-muted-foreground/60 sm:block" />
+        <span className="hidden truncate text-sm text-muted-foreground sm:block">{chatTitle}</span>
       </div>
 
-      <div className="flex items-center gap-3">
-        {/* Admin Evals Cockpit Link */}
-        {isAdmin && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate('/dashboard')}
-            className="h-8 px-2.5 text-xs text-foreground border-border hover:bg-muted/80 rounded-lg cursor-pointer flex items-center gap-1.5 shadow-2xs"
-            title="Open Telemetry & Evaluation Cockpit"
-          >
-            <Activity className="w-3.5 h-3.5 text-primary" />
-            <span className="hidden md:inline font-medium">Evals & Traces</span>
-          </Button>
-        )}
-
-        {/* Theme toggle */}
+      {/* Actions */}
+      <div className="flex shrink-0 items-center gap-1.5">
         <button
-          onClick={toggleTheme}
-          className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors rounded-lg cursor-pointer"
-          aria-label="Toggle theme"
-          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          type="button"
+          onClick={onOpenPalette}
+          className="hidden h-8 w-56 items-center gap-2 rounded-md border border-border bg-background px-2.5 text-sm text-muted-foreground shadow-xs transition-colors hover:bg-accent md:flex cursor-pointer dark:bg-input/30"
+          aria-label="Open command menu"
         >
-          {theme === 'dark' ? (
-            <Sun className="w-4 h-4" />
-          ) : (
-            <Moon className="w-4 h-4" />
-          )}
+          <Search className="size-4" />
+          <span className="flex-1 text-left">Search…</span>
+          <Kbd>{isMac ? '⌘' : 'Ctrl'}K</Kbd>
+        </button>
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground md:hidden cursor-pointer"
+          aria-label="Open command menu"
+        >
+          <Search className="size-4" />
         </button>
 
-        {/* User info */}
-        <div className="flex items-center gap-2 text-xs font-medium text-foreground bg-muted/50 px-2.5 py-1 rounded-lg border border-border/60 hidden sm:flex">
-          <User className="w-3.5 h-3.5 text-muted-foreground" />
-          <span>{authUser?.name}</span>
-        </div>
+        <ThemeToggle className="size-8" />
 
-        {/* Logout */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={logout}
-          className="h-8 px-2.5 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
-          title="Sign Out"
-        >
-          <LogOut className="w-3.5 h-3.5 mr-1.5" />
-          <span className="hidden sm:inline">Logout</span>
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="ml-0.5 rounded-full outline-none transition-opacity hover:opacity-90 focus-visible:ring-[3px] focus-visible:ring-ring/50 cursor-pointer"
+              aria-label="Account menu"
+            >
+              <Avatar src={authUser?.avatar} name={authUser?.name || authUser?.email || ''} className="size-8" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-60">
+            <div className="flex items-center gap-2.5 px-2 py-2">
+              <Avatar src={authUser?.avatar} name={authUser?.name || ''} className="size-8" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-foreground">{authUser?.name}</p>
+                <p className="truncate text-xs text-muted-foreground">{authUser?.email}</p>
+              </div>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onOpenPalette}>
+              <Command /> Command menu
+              <Kbd className="ml-auto">{isMac ? '⌘' : 'Ctrl'}K</Kbd>
+            </DropdownMenuItem>
+            {isAdmin && (
+              <DropdownMenuItem onSelect={() => navigate('/dashboard')}>
+                <LayoutDashboard /> Admin dashboard
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onSelect={() => window.open(REPO_URL, '_blank', 'noopener')}>
+              <Github /> GitHub
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={logout}>
+              <LogOut /> Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

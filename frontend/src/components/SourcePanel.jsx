@@ -1,72 +1,88 @@
-import { useState } from 'react';
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Plus, FileText, Link, Upload, Loader2, FileType, FileSpreadsheet, AlertCircle, Check, Lock, Trash2, X, MoreVertical, Pencil, ChevronDown, ChevronUp } from "lucide-react";
-import { useSourceStore } from '../stores/sourceStore';
-import { useChatStore } from '../stores/chatStore';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
+  Plus,
+  Upload,
+  Loader2,
+  Check,
+  Lock,
+  Trash2,
+  MoreHorizontal,
+  Pencil,
+  ChevronDown,
+  ChevronUp,
+  Search,
+  Library,
+  NotebookPen,
+  Link2,
+  CloudUpload,
+  X,
+  MessageSquarePlus,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
+import { useSourceStore } from '../stores/sourceStore';
+import { useChatStore } from '../stores/chatStore';
+import { getSourceMeta, getSourceName } from './workspace/source-meta';
+import { SourceIcon, SourceStatus } from './workspace/source-badges';
 
-const getSourceIcon = (type) => {
-  switch (type) {
-    case 'pdf':
-      return <FileText className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} />;
-    case 'docx':
-      return <FileType className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} />;
-    case 'csv':
-      return <FileSpreadsheet className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} />;
-    case 'text':
-    case 'text-paste':
-      return <FileText className="w-3.5 h-3.5 text-muted-foreground" />;
-    case 'link':
-      return <Link className="w-3.5 h-3.5 text-muted-foreground" />;
-    default:
-      return <FileText className="w-3.5 h-3.5 text-muted-foreground" />;
+const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.csv', '.txt'];
+const COLLAPSED_COUNT = 6;
+
+const ADD_MODES = [
+  { key: 'text', label: 'Text', icon: NotebookPen },
+  { key: 'upload', label: 'Upload', icon: CloudUpload },
+  { key: 'url', label: 'Link', icon: Link2 },
+];
+
+/** Checks the extension; returns the file or null (with a toast). */
+function acceptFile(file) {
+  if (!file) return null;
+  const extension = '.' + file.name.split('.').pop().toLowerCase();
+  if (!ALLOWED_EXTENSIONS.includes(extension)) {
+    toast.error('Please choose a PDF, Word (DOCX), CSV or TXT file.');
+    return null;
   }
-};
+  return file;
+}
 
-const getTypeLabel = (type) => {
-  switch (type) {
-    case 'pdf': return 'PDF DOCUMENT';
-    case 'docx': return 'DOCX FILE';
-    case 'csv': return 'CSV DATA';
-    case 'text':
-    case 'text-paste': return 'TEXT SNIPPET';
-    case 'link': return 'WEB SOURCE';
-    default: return 'SOURCE';
-  }
-};
+function formatBytes(bytes) {
+  if (!bytes && bytes !== 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
-const StatusBadge = ({ status }) => {
-  switch (status) {
-    case 'uploading':
-    case 'queued':
-    case 'processing':
-      return (
-        <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--accent)' }}></div>
-          <span className="text-muted-foreground capitalize" style={{ fontSize: '11px' }}>{status}</span>
-        </div>
-      );
-    case 'failed':
-      return (
-        <div className="flex items-center gap-1.5">
-          <AlertCircle className="w-3 h-3 text-destructive" />
-          <span className="text-destructive" style={{ fontSize: '11px' }}>Failed</span>
-        </div>
-      );
-    default:
-      return null; // 'completed' — no badge
-  }
-};
+/** Square checkbox matching the shadcn checkbox. */
+function SelectBox({ checked, locked, onToggle, label }) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      className={cn(
+        'flex size-4 shrink-0 items-center justify-center rounded-[4px] border shadow-xs transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+        checked ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background dark:bg-input/30',
+        locked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+      )}
+    >
+      {checked && <Check className="size-3" strokeWidth={3} />}
+    </button>
+  );
+}
 
-export default function SourcePanel() {
+export default function SourcePanel({ headerActions }) {
   const {
     sources,
     selectedSource,
@@ -91,16 +107,27 @@ export default function SourcePanel() {
   const activeChatId = useChatStore((s) => s.activeChatId);
   const startNewChat = useChatStore((s) => s.startNewChat);
   const isChatActive = Boolean(activeChatId);
+
+  const [addOpen, setAddOpen] = useState(false);
+  const [activeInput, setActiveInput] = useState('text');
   const [textInput, setTextInput] = useState('');
   const [urlInput, setUrlInput] = useState('');
   const [file, setFile] = useState(null);
-  const [activeInput, setActiveInput] = useState('text');
+  const [isDragging, setIsDragging] = useState(false);
+  const [query, setQuery] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
+  const [pendingDelete, setPendingDelete] = useState(null);
 
-  const COLLAPSED_COUNT = 6;
-  const visibleSources = expanded ? sources : sources.slice(0, COLLAPSED_COUNT);
-  const hasExtra = sources.length > COLLAPSED_COUNT || hasMore;
+  const filtering = query.trim().length > 0;
+  const filteredSources = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return sources;
+    return sources.filter((s) => getSourceName(s).toLowerCase().includes(q));
+  }, [sources, query]);
+
+  const visibleSources = filtering || expanded ? filteredSources : filteredSources.slice(0, COLLAPSED_COUNT);
+  const hasExtra = !filtering && (sources.length > COLLAPSED_COUNT || hasMore);
 
   // Infinite scroll: when expanded and the user nears the bottom, fetch the next page.
   const handleListScroll = (e) => {
@@ -111,210 +138,169 @@ export default function SourcePanel() {
     }
   };
 
+  const openAdd = (mode = 'text') => {
+    setActiveInput(mode);
+    setAddOpen(true);
+  };
+
   const handleTextSubmit = async () => {
     if (!textInput.trim()) return;
     const result = await addTextSource(textInput);
-    if (result.success) setTextInput('');
+    if (result.success) {
+      setTextInput('');
+      setAddOpen(false);
+    }
   };
 
   const handleUrlSubmit = async () => {
     if (!urlInput.trim()) return;
     const result = await addUrlSource(urlInput);
-    if (result.success) setUrlInput('');
+    if (result.success) {
+      setUrlInput('');
+      setAddOpen(false);
+    }
   };
 
   const handleFileSubmit = async () => {
     if (!file) return;
     const result = await addFileSource(file);
-    if (result.success) setFile(null);
-  };
-
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      const allowedTypes = ['.pdf', '.docx', '.csv', '.txt'];
-      const fileExtension = '.' + selectedFile.name.split('.').pop().toLowerCase();
-      if (allowedTypes.includes(fileExtension)) {
-        setFile(selectedFile);
-      } else {
-        toast.error('Please upload PDF, DOCX, CSV, or TXT files only');
-        e.target.value = '';
-      }
+    if (result.success) {
+      setFile(null);
+      setAddOpen(false);
     }
   };
 
+  // The hidden input is also clicked from the content panel's "Upload" button, so a chosen
+  // file opens the add dialog on the Upload tab.
+  const handleFileChange = (e) => {
+    const chosen = acceptFile(e.target.files?.[0]);
+    e.target.value = '';
+    if (chosen) {
+      setFile(chosen);
+      openAdd('upload');
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const chosen = acceptFile(e.dataTransfer.files?.[0]);
+    if (chosen) setFile(chosen);
+  };
+
+  const handleToggle = (id) => {
+    if (isChatActive) {
+      toast.info('Sources are locked to this dialogue. Start a new dialogue to choose different sources.');
+    } else {
+      toggleSourceSelection(id);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setPendingDelete(null);
+    await deleteSource(id);
+  };
+
+  const submitting = isUploading;
+  const canSubmit =
+    (activeInput === 'text' && textInput.trim()) ||
+    (activeInput === 'url' && urlInput.trim()) ||
+    (activeInput === 'upload' && file);
+  const submitLabel = activeInput === 'text' ? 'Add text' : activeInput === 'url' ? 'Add link' : 'Upload file';
+  const onSubmit = activeInput === 'text' ? handleTextSubmit : activeInput === 'url' ? handleUrlSubmit : handleFileSubmit;
+
   return (
-    <div className="h-full flex flex-col bg-background">
-      {/* Input Section */}
-      <div className="p-5 border-b border-border space-y-4 flex-shrink-0">
-        {/* Input type switcher */}
-        <div className="flex bg-muted/60 p-1 rounded-lg gap-1 mb-3">
-          {['text', 'upload', 'url'].map((type) => (
-            <button
-              key={type}
-              onClick={() => setActiveInput(type)}
-              className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                activeInput === type
-                  ? 'bg-background text-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {type === 'text' ? 'Quick Text' : type === 'upload' ? 'Upload File' : 'Web URL'}
-            </button>
-          ))}
-        </div>
+    <div className="flex h-full flex-col bg-background">
+      {/* Always mounted: the content panel's empty state clicks this input directly. */}
+      <input type="file" id="file-upload" className="hidden" onChange={handleFileChange} accept={ALLOWED_EXTENSIONS.join(',')} />
 
-        {/* Text input */}
-        {activeInput === 'text' && (
-          <div className="space-y-3">
-            <Textarea
-              placeholder="Paste notes or text for ingestion..."
-              value={textInput}
-              onChange={(e) => setTextInput(e.target.value)}
-              className="bg-background border border-border resize-none text-body field-sizing-fixed h-40 overflow-y-auto rounded-lg focus:border-foreground focus:ring-2 focus:ring-foreground/10 transition-all placeholder:text-muted-foreground/50"
-            />
-            <Button
-              onClick={handleTextSubmit}
-              disabled={!textInput.trim() || isUploading}
-              className="w-full text-sm font-medium shadow-xs"
-            >
-              {isUploading ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Plus className="w-4 h-4 mr-2" />
-              )}
-              Ingest Fragment
-            </Button>
-          </div>
-        )}
-
-        {/* File upload */}
-        {activeInput === 'upload' && (
-          <div className="space-y-3">
-            <div
-              className="border border-dashed border-border rounded-lg p-6 text-center hover:border-foreground/50 hover:bg-muted/30 transition-all cursor-pointer"
-              onClick={() => document.getElementById('file-upload')?.click()}
-            >
-              <input
-                type="file"
-                id="file-upload"
-                className="hidden"
-                onChange={handleFileChange}
-                accept=".pdf,.docx,.csv,.txt"
-              />
-              <Upload className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
-              <p className={`text-sm ${file ? "text-foreground font-semibold" : "text-muted-foreground"}`}>
-                {file ? file.name : "Click to select file"}
-              </p>
-              <p className="text-muted-foreground mt-1 text-xs">
-                PDF, DOCX, CSV, TXT
-              </p>
-            </div>
-            <Button
-              onClick={handleFileSubmit}
-              disabled={!file || isUploading}
-              className="w-full text-sm font-medium shadow-xs"
-            >
-              {isUploading ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Upload className="w-4 h-4 mr-2" />
-              )}
-              Upload File
-            </Button>
-          </div>
-        )}
-
-        {/* URL input */}
-        {activeInput === 'url' && (
-          <div className="space-y-3">
-            <div className="flex gap-2">
-              <Input
-                placeholder="https://..."
-                value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
-                className="bg-background border border-border rounded-lg text-sm text-foreground focus:border-foreground focus:ring-2 focus:ring-foreground/10 transition-all placeholder:text-muted-foreground/50 flex-1 h-10 px-3.5"
-              />
-              <Button
-                onClick={handleUrlSubmit}
-                disabled={!urlInput.trim() || isUploading}
-                size="icon"
-                className="h-10 w-10 rounded-lg shadow-xs flex-shrink-0"
-              >
-                {isUploading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Plus className="w-4 h-4" />
-                )}
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Sources List */}
-      <div className="flex-1 overflow-y-auto p-5" onScroll={handleListScroll}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-label text-muted-foreground font-semibold" style={{ fontSize: '11px', letterSpacing: '0.08em' }}>
-              LIBRARY
-            </span>
-            {sources.length > 0 && (
-              <span className="text-micro font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border/60">
-                {selectedSourceIds.length}/{sources.length} active
-              </span>
-            )}
-          </div>
+      {/* Header */}
+      <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border pr-2 pl-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <Library className="size-4 text-muted-foreground" />
+          <h2 className="text-sm font-medium text-foreground">Sources</h2>
           {sources.length > 0 && (
-            isChatActive ? (
-              <div className="flex items-center gap-1.5">
-                <div
-                  className="flex items-center gap-1 text-mini text-muted-foreground bg-muted/60 px-2 py-0.5 rounded border border-border/60 cursor-default"
-                  title="Source selection is locked for this active dialogue. Start a new dialogue to change sources."
-                >
-                  <Lock className="w-3 h-3 text-muted-foreground" />
-                  <span>Locked</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={startNewChat}
-                  className="text-mini font-medium text-foreground hover:underline transition-colors cursor-pointer"
-                  title="Start a new dialogue to choose different sources"
-                >
-                  + New
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-mini">
-                <button
-                  type="button"
-                  onClick={selectAllSources}
-                  className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                  title="Include all sources in queries"
-                >
-                  All
-                </button>
-                <span className="text-border">·</span>
-                <button
-                  type="button"
-                  onClick={clearSourceSelection}
-                  className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                  title="Clear all selected sources"
-                >
-                  None
-                </button>
-              </div>
-            )
+            <Badge variant="muted" size="sm" className="tabular-nums">
+              {sources.length}
+            </Badge>
           )}
         </div>
+        <div className="flex items-center gap-1">
+          <Button size="xs" variant="outline" onClick={() => openAdd('text')}>
+            <Plus /> Add
+          </Button>
+          {headerActions}
+        </div>
+      </div>
 
-        <div className="space-y-1">
+      {/* Search + selection */}
+      {sources.length > 0 && (
+        <div className="shrink-0 space-y-2 border-b border-border px-3 py-2.5">
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search sources…"
+              className="h-8 pl-8 pr-7 text-sm"
+              aria-label="Search sources"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                aria-label="Clear search"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+
+          {isChatActive ? (
+            <div className="flex items-center justify-between gap-2 rounded-md bg-muted/70 px-2.5 py-1.5" title="This dialogue keeps the sources it started with. Start a new dialogue to choose different ones.">
+              <span className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
+                <Lock className="size-3" /> Sources locked
+              </span>
+              <button
+                type="button"
+                onClick={startNewChat}
+                className="flex items-center gap-1 whitespace-nowrap text-xs font-medium text-foreground underline-offset-4 hover:underline cursor-pointer"
+              >
+                <MessageSquarePlus className="size-3" /> New dialogue
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between px-0.5 text-xs">
+              <span className="text-muted-foreground tabular-nums">
+                {selectedSourceIds.length} of {sources.length} selected
+              </span>
+              <span className="flex items-center gap-2">
+                <button type="button" onClick={selectAllSources} className="text-muted-foreground hover:text-foreground cursor-pointer">
+                  Select all
+                </button>
+                <span className="text-border">|</span>
+                <button type="button" onClick={clearSourceSelection} className="text-muted-foreground hover:text-foreground cursor-pointer">
+                  Clear
+                </button>
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* List */}
+      <div className="flex-1 overflow-y-auto px-2 py-2" onScroll={handleListScroll}>
+        <ul className="space-y-0.5">
           {visibleSources.map((source) => {
             const id = source._id || source.id;
             const isChecked = selectedSourceIds.includes(id);
             const isViewing = selectedSource?._id === id;
             const isEditing = editingId === id;
-            const displayName = source.title || source.originalFileName || `${source.type} source`;
+            const displayName = getSourceName(source);
+            const { label: typeLabel } = getSourceMeta(source.type);
 
             const saveRename = async () => {
               const t = editTitle.trim();
@@ -323,162 +309,274 @@ export default function SourcePanel() {
             };
 
             return (
-              <div
+              <li
                 key={id}
-                className={`group relative p-2.5 rounded-md transition-all border ${
-                  isViewing
-                    ? 'bg-muted/60 border-foreground/30 shadow-xs'
-                    : isChecked
-                    ? 'border-border/80 hover:bg-muted/30'
-                    : 'border-transparent opacity-75 hover:opacity-100 hover:bg-muted/20'
-                } ${isEditing ? '' : 'cursor-pointer'}`}
+                className={cn(
+                  'group flex items-center gap-2.5 rounded-md px-2 py-2 transition-colors',
+                  isViewing ? 'bg-accent' : 'hover:bg-accent/60',
+                  !isEditing && 'cursor-pointer'
+                )}
                 onClick={() => !isEditing && selectSource(source)}
               >
-                <div className="flex items-start gap-2.5">
-                  {/* Selection checkbox (locked to the active dialogue) */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isChatActive) {
-                        toast.info("Sources are locked to the current dialogue. Click '+ New' to start a new dialogue with different sources.");
-                      } else {
-                        toggleSourceSelection(id);
-                      }
-                    }}
-                    className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${
-                      isChatActive
-                        ? isChecked
-                          ? 'bg-muted border-foreground/40 text-foreground cursor-not-allowed opacity-90'
-                          : 'border-border/30 bg-muted/10 text-transparent cursor-not-allowed opacity-25'
-                        : isChecked
-                        ? 'bg-primary border-primary text-primary-foreground cursor-pointer'
-                        : 'border-border hover:border-foreground/50 bg-background cursor-pointer'
-                    }`}
-                    aria-label={`Toggle source ${displayName}`}
-                  >
-                    {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
-                  </button>
-
-                  <div className="flex-shrink-0 mt-0.5">{getSourceIcon(source.type)}</div>
-
-                  <div className="flex-1 min-w-0">
-                    {isEditing ? (
-                      <input
-                        autoFocus
-                        value={editTitle}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') saveRename();
-                          if (e.key === 'Escape') setEditingId(null);
-                        }}
-                        onBlur={saveRename}
-                        className="w-full px-1.5 py-0.5 rounded text-meta font-semibold bg-background border border-foreground/40 focus:outline-none"
-                      />
-                    ) : (
-                      <p className="text-meta font-semibold text-foreground truncate leading-snug">
-                        {displayName}
-                      </p>
-                    )}
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-muted-foreground" style={{ fontSize: '11px' }}>
-                        {getTypeLabel(source.type)}
-                      </span>
-                      <StatusBadge status={source.status} />
-                    </div>
-                  </div>
-
-                  {/* Kebab menu: Rename / Delete (portaled, always clickable) */}
-                  {!isEditing && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={(e) => e.stopPropagation()}
-                          className="p-1 -mr-1 rounded text-muted-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 hover:text-foreground hover:bg-muted transition-all cursor-pointer flex-shrink-0"
-                          aria-label={`Actions for ${displayName}`}
-                        >
-                          <MoreVertical className="w-3.5 h-3.5" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            setEditTitle(source.title || source.originalFileName || '');
-                            setEditingId(id);
-                          }}
-                        >
-                          <Pencil className="w-3.5 h-3.5" /> Rename
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                          onSelect={() => deleteSource(id)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                <SelectBox
+                  checked={isChecked}
+                  locked={isChatActive}
+                  onToggle={() => handleToggle(id)}
+                  label={`Include ${displayName} in questions`}
+                />
+                <SourceIcon type={source.type} />
+                <div className="min-w-0 flex-1">
+                  {isEditing ? (
+                    <Input
+                      autoFocus
+                      value={editTitle}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') saveRename();
+                        if (e.key === 'Escape') setEditingId(null);
+                      }}
+                      onBlur={saveRename}
+                      className="h-7 px-2 text-sm"
+                      aria-label="Source name"
+                    />
+                  ) : (
+                    <p className={cn('truncate text-sm leading-tight', isViewing ? 'font-medium text-foreground' : 'text-foreground/90')}>
+                      {displayName}
+                    </p>
                   )}
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{typeLabel}</span>
+                    <SourceStatus status={source.status} />
+                  </div>
                 </div>
-              </div>
+
+                {!isEditing && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-background hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:bg-background data-[state=open]:opacity-100 cursor-pointer"
+                        aria-label={`Actions for ${displayName}`}
+                      >
+                        <MoreHorizontal className="size-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent onClick={(e) => e.stopPropagation()} className="w-40">
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          setEditTitle(source.title || source.originalFileName || '');
+                          setEditingId(id);
+                        }}
+                      >
+                        <Pencil /> Rename
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:!text-destructive"
+                        onSelect={() => setPendingDelete({ id, name: displayName })}
+                      >
+                        <Trash2 /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </li>
             );
           })}
+        </ul>
 
-          {isLoading && sources.length === 0 && (
-            <div className="space-y-1 animate-fade-in" aria-hidden="true">
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="p-2.5 flex items-start gap-2.5">
-                  <div className="skeleton" style={{ width: '16px', height: '16px', borderRadius: '4px' }} />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="skeleton" style={{ width: '80%', height: '12px' }} />
-                    <div className="skeleton" style={{ width: '45%', height: '10px' }} />
-                  </div>
+        {isLoading && sources.length === 0 && (
+          <div className="space-y-1 animate-fade-in" aria-hidden="true">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-2.5 px-2 py-2">
+                <div className="skeleton size-4 rounded-[4px]" />
+                <div className="skeleton size-8 rounded-md" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="skeleton h-3 w-4/5" />
+                  <div className="skeleton h-2.5 w-2/5" />
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            ))}
+          </div>
+        )}
 
-          {!isLoading && sources.length === 0 && (
-            <div className="text-center py-12">
-              <FileText className="w-8 h-8 mx-auto text-muted-foreground/40 mb-3" />
-              <p className="text-meta text-muted-foreground">No sources indexed</p>
-            </div>
-          )}
+        {!isLoading && sources.length === 0 && (
+          <div className="flex flex-col items-center px-4 py-14 text-center">
+            <span className="flex size-11 items-center justify-center rounded-xl border border-border bg-muted/50">
+              <Library className="size-5 text-muted-foreground" />
+            </span>
+            <p className="mt-4 text-sm font-medium text-foreground">No sources yet</p>
+            <p className="mt-1 max-w-[220px] text-xs leading-relaxed text-muted-foreground">
+              Add a PDF, a web page or some notes to start asking questions.
+            </p>
+            <Button size="sm" className="mt-4" onClick={() => openAdd('upload')}>
+              <Plus /> Add source
+            </Button>
+          </div>
+        )}
 
-          {/* Show more / Show less + infinite-scroll loader */}
-          {hasExtra && (
-            <div className="pt-2">
-              {!expanded ? (
+        {filtering && filteredSources.length === 0 && sources.length > 0 && (
+          <p className="px-3 py-8 text-center text-xs text-muted-foreground">No sources match “{query}”.</p>
+        )}
+
+        {hasExtra && (
+          <div className="pt-1">
+            {!expanded ? (
+              <button
+                type="button"
+                onClick={() => setExpanded(true)}
+                className="flex w-full items-center justify-center gap-1 rounded-md py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer"
+              >
+                <ChevronDown className="size-3.5" /> Show more
+              </button>
+            ) : (
+              <>
+                {isLoadingMore && (
+                  <div className="flex justify-center py-2">
+                    <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                  </div>
+                )}
                 <button
                   type="button"
-                  onClick={() => setExpanded(true)}
-                  className="w-full flex items-center justify-center gap-1 py-1.5 text-mini font-medium text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded transition-colors cursor-pointer"
+                  onClick={() => setExpanded(false)}
+                  className="flex w-full items-center justify-center gap-1 rounded-md py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer"
                 >
-                  <ChevronDown className="w-3.5 h-3.5" />
-                  Show more
+                  <ChevronUp className="size-3.5" /> Show less
                 </button>
-              ) : (
-                <>
-                  {isLoadingMore && (
-                    <div className="flex justify-center py-2">
-                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setExpanded(false)}
-                    className="w-full flex items-center justify-center gap-1 py-1.5 text-mini font-medium text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded transition-colors cursor-pointer"
-                  >
-                    <ChevronUp className="w-3.5 h-3.5" />
-                    Show less
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-        </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Add source dialog */}
+      <Dialog open={addOpen} onOpenChange={(open) => !submitting && setAddOpen(open)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add a source</DialogTitle>
+            <DialogDescription>Sagewell reads it, writes a short summary and makes it searchable.</DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-5 grid grid-cols-3 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Source type">
+            {ADD_MODES.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={activeInput === key}
+                onClick={() => setActiveInput(key)}
+                className={cn(
+                  'flex items-center justify-center gap-1.5 rounded-md py-1.5 text-sm font-medium transition-all cursor-pointer',
+                  activeInput === key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <Icon className="size-4" /> {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4">
+            {activeInput === 'text' && (
+              <div className="space-y-2">
+                <Textarea
+                  autoFocus
+                  placeholder="Paste notes, an article or any text…"
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  className="field-sizing-fixed h-48 overflow-y-auto"
+                />
+                <p className="text-right text-xs text-muted-foreground tabular-nums">
+                  {textInput.length.toLocaleString()} characters
+                </p>
+              </div>
+            )}
+
+            {activeInput === 'upload' && (
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => document.getElementById('file-upload')?.click()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') document.getElementById('file-upload')?.click();
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+                className={cn(
+                  'flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-6 py-10 text-center transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                  isDragging ? 'border-foreground/50 bg-accent' : 'border-border hover:bg-accent/50'
+                )}
+              >
+                {file ? (
+                  <>
+                    <SourceIcon type={file.name.split('.').pop().toLowerCase()} className="size-10" iconClassName="size-5" />
+                    <p className="mt-3 max-w-full truncate text-sm font-medium text-foreground">{file.name}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{formatBytes(file.size)} · click to choose another file</p>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex size-10 items-center justify-center rounded-lg border border-border bg-background shadow-xs">
+                      <Upload className="size-4 text-muted-foreground" />
+                    </span>
+                    <p className="mt-3 text-sm font-medium text-foreground">Drop a file here, or click to browse</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">PDF, Word (DOCX), CSV or TXT · up to 50 MB</p>
+                  </>
+                )}
+              </div>
+            )}
+
+            {activeInput === 'url' && (
+              <div className="space-y-2">
+                <div className="relative">
+                  <Link2 className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    autoFocus
+                    placeholder="https://example.com/article"
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleUrlSubmit();
+                    }}
+                    className="pl-9"
+                    aria-label="Web page address"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Works with articles, docs and most public pages.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-6 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setAddOpen(false)} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button onClick={onSubmit} disabled={!canSubmit || submitting}>
+              {submitting && <Loader2 className="animate-spin" />}
+              {submitLabel}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        title="Delete this source?"
+        description={
+          pendingDelete
+            ? `“${pendingDelete.name}” and its passages will be removed. Dialogues that relied only on it become read-only.`
+            : ''
+        }
+        confirmLabel="Delete source"
+        destructive
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }
+

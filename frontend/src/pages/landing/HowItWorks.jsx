@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { BookOpen, FileText, Globe, StickyNote, MessageSquareText, Quote, Sparkles } from "lucide-react";
+import { BookOpen, FileText, Globe, StickyNote, MessageSquareText, Quote, CornerDownRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Rails, Rule, SectionHeading, Chip } from "./primitives";
 import { HOW_IT_WORKS } from "./content";
@@ -58,7 +58,7 @@ const VISUALS = [
           </p>
         </NodeCard>
         <div className="flex items-center gap-2 rounded-md border border-lp-line bg-lp-bg px-3 py-2 text-[12px] text-lp-text">
-          <Sparkles className="size-3.5 text-brand" /> Ask a follow-up…
+          <CornerDownRight className="size-3.5 text-brand" /> Ask a follow-up…
         </div>
       </div>
     </div>

@@ -5,26 +5,17 @@
 
 /* ============================================================
    SAGEWELL DESIGN SYSTEM
-   Follows the RoastForge design language: warm off-white page, charcoal ink,
-   one teal brand colour, Heming display + Geist body + Geist Mono labels,
-   ink-tinted shadows, hairline structural dividers.
-   Tokens hold full colours (hsl(...)) so `var(--x)` works anywhere and Tailwind
-   opacity modifiers (bg-primary/10) still work through color-mix.
+   Neutral shadcn-style palette shared with the landing page: white / near-black
+   surfaces, hairline borders, coral brand accent, Inter + DM Mono.
+   Tokens hold full colours so `var(--x)` works anywhere and Tailwind opacity
+   modifiers (bg-primary/10) still work through color-mix.
    ============================================================ */
-
-@font-face {
-  font-family: "Heming";
-  src: url("./fonts/heming-variable.ttf") format("truetype");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
 
 @theme inline {
   /* Fonts */
-  --font-sans: "Geist Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --font-heading: "Heming", "Geist Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "DM Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-heading: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
 
   /* Radius scale (RoastForge: lg = --radius) */
   --radius-sm: calc(var(--radius) - 4px);
@@ -71,6 +62,8 @@
   --color-warning: var(--warning);
   --color-border: var(--border);
   --color-hairline: var(--hairline);
+  --color-sidebar: var(--sidebar);
+  --color-brand-app: var(--brand);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-chart-1: var(--chart-1);
@@ -132,113 +125,115 @@
   to { transform: rotate(360deg) translateX(var(--orbit-radius, 160px)) rotate(-360deg); }
 }
 
-html.lp-root { font-size: 16px; }
-
 .lp-dots {
   background-image: radial-gradient(var(--lp-dots) 1px, transparent 1px);
   background-size: 10px 10px;
 }
 
 /* ============================================================
-   LIGHT (default)
+   LIGHT (default) — neutral shadcn palette with the landing page's coral brand
    ============================================================ */
 :root {
-  --radius: 0.5rem;
+  --radius: 0.625rem;
 
-  --background: hsl(40 33% 96%); /* #F9F6F1 warm off-white */
-  --foreground: hsl(222 16% 20%); /* charcoal ink */
-  --card: hsl(0 0% 100%);
-  --card-foreground: hsl(222 16% 20%);
-  --card-border: hsl(222 16% 20%);
-  --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(222 16% 20%);
-  --popover-border: hsl(222 16% 20%);
+  --background: #ffffff;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --card-border: #e5e5e5;
+  --popover: #ffffff;
+  --popover-foreground: #171717;
+  --popover-border: #e5e5e5;
+  --sidebar: #fafafa; /* app frame behind the inset panels */
 
-  --primary: hsl(182 40% 44%); /* #43999D brand teal */
-  --primary-foreground: hsl(216 30% 10%);
-  --primary-strong: hsl(184 42% 27%); /* text-safe teal for text and icons */
+  --primary: #171717;
+  --primary-foreground: #fafafa;
+  --primary-strong: #c84a35; /* brand coral, darkened for readable text */
+  --brand: #f17463;
 
-  --secondary: hsl(40 24% 92%);
-  --secondary-foreground: hsl(222 16% 20%);
-  --muted: hsl(40 30% 94%);
-  --muted-foreground: hsl(218 12% 38%);
-  --accent: hsl(186 38% 82%); /* soft teal wash */
-  --accent-foreground: hsl(184 42% 27%);
+  --secondary: #f5f5f5;
+  --secondary-foreground: #171717;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --accent: #f5f5f5; /* hover / selected surfaces */
+  --accent-foreground: #171717;
 
-  --destructive: hsl(0 72% 48%);
-  --destructive-foreground: hsl(0 0% 100%);
-  --success: hsl(152 55% 32%);
-  --warning: hsl(32 90% 40%);
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --success: #16a34a;
+  --warning: #d97706;
 
-  --border: hsl(222 16% 20%); /* ink: component edges */
-  --hairline: #d1d5dc; /* structural dividers */
-  --input: hsl(222 16% 20%);
-  --ring: hsl(182 40% 44%);
+  --border: #e5e5e5;
+  --hairline: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #a3a3a3;
 
-  --chart-1: hsl(182 40% 44%);
-  --chart-2: hsl(184 42% 27%);
-  --chart-3: hsl(186 38% 62%);
-  --chart-4: hsl(38 88% 50%);
-  --chart-5: hsl(0 72% 48%);
+  --chart-1: #f17463;
+  --chart-2: #171717;
+  --chart-3: #a3a3a3;
+  --chart-4: #d97706;
+  --chart-5: #dc2626;
 
-  --sh-2xs: 0 1px 2px hsl(220 18% 12% / 0.05);
-  --sh-xs: 0 1px 3px hsl(220 18% 12% / 0.07);
-  --sh-sm: 0 4px 10px hsl(220 18% 12% / 0.07);
-  --sh: 0 8px 20px hsl(220 18% 12% / 0.08);
-  --sh-md: 0 14px 32px hsl(220 18% 12% / 0.09);
-  --sh-lg: 0 22px 48px hsl(220 18% 12% / 0.11);
-  --sh-xl: 0 32px 64px hsl(220 18% 12% / 0.13);
-  --sh-2xl: 0 44px 88px hsl(220 18% 12% / 0.15);
+  --sh-2xs: 0 1px 2px rgb(0 0 0 / 0.04);
+  --sh-xs: 0 1px 2px rgb(0 0 0 / 0.06);
+  --sh-sm: 0 1px 3px rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --sh: 0 4px 12px -2px rgb(0 0 0 / 0.08);
+  --sh-md: 0 8px 20px -4px rgb(0 0 0 / 0.1);
+  --sh-lg: 0 16px 40px -8px rgb(0 0 0 / 0.14);
+  --sh-xl: 0 24px 56px -12px rgb(0 0 0 / 0.18);
+  --sh-2xl: 0 32px 72px -16px rgb(0 0 0 / 0.22);
 }
 
 /* ============================================================
    DARK
    ============================================================ */
 .dark {
-  --background: hsl(240 7% 8%); /* #131316 */
-  --foreground: hsl(240 5% 96%);
-  --card: hsl(240 6% 11.5%);
-  --card-foreground: hsl(240 5% 96%);
-  --card-border: hsl(240 6% 18%);
-  --popover: hsl(240 6% 11%);
-  --popover-foreground: hsl(240 5% 96%);
-  --popover-border: hsl(240 6% 18%);
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  --card: #0a0a0a;
+  --card-foreground: #fafafa;
+  --card-border: #262626;
+  --popover: #171717;
+  --popover-foreground: #fafafa;
+  --popover-border: #262626;
+  --sidebar: #141414;
 
-  --primary: hsl(182 60% 46%);
-  --primary-foreground: hsl(240 7% 8%);
-  --primary-strong: hsl(182 58% 62%);
+  --primary: #fafafa;
+  --primary-foreground: #171717;
+  --primary-strong: #f58b7c;
+  --brand: #f17463;
 
-  --secondary: hsl(240 6% 14%);
-  --secondary-foreground: hsl(240 5% 96%);
-  --muted: hsl(240 6% 14%);
-  --muted-foreground: hsl(240 5% 65%);
-  --accent: hsl(240 6% 16%);
-  --accent-foreground: hsl(182 58% 62%);
+  --secondary: #262626;
+  --secondary-foreground: #fafafa;
+  --muted: #1c1c1c;
+  --muted-foreground: #a1a1a1;
+  --accent: #262626;
+  --accent-foreground: #fafafa;
 
-  --destructive: hsl(0 75% 55%);
-  --destructive-foreground: hsl(0 0% 100%);
-  --success: hsl(152 50% 52%);
-  --warning: hsl(38 92% 58%);
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --success: #22c55e;
+  --warning: #f59e0b;
 
-  --border: hsl(240 6% 18%);
+  --border: #262626;
   --hairline: #262626;
-  --input: hsl(240 6% 18%);
-  --ring: hsl(182 60% 48%);
+  --input: #2e2e2e;
+  --ring: #737373;
 
-  --chart-1: hsl(182 60% 50%);
-  --chart-2: hsl(182 58% 66%);
-  --chart-3: hsl(186 45% 40%);
-  --chart-4: hsl(38 92% 58%);
-  --chart-5: hsl(0 75% 60%);
+  --chart-1: #f17463;
+  --chart-2: #fafafa;
+  --chart-3: #737373;
+  --chart-4: #f59e0b;
+  --chart-5: #ef4444;
 
-  --sh-2xs: 0 1px 2px hsl(240 10% 3% / 0.3);
-  --sh-xs: 0 1px 3px hsl(240 10% 3% / 0.34);
-  --sh-sm: 0 4px 10px hsl(240 10% 3% / 0.38);
-  --sh: 0 8px 20px hsl(240 10% 3% / 0.42);
-  --sh-md: 0 14px 32px hsl(240 10% 3% / 0.46);
-  --sh-lg: 0 22px 48px hsl(240 10% 3% / 0.5);
-  --sh-xl: 0 32px 64px hsl(240 10% 3% / 0.54);
-  --sh-2xl: 0 44px 88px hsl(240 10% 3% / 0.58);
+  --sh-2xs: 0 1px 2px rgb(0 0 0 / 0.3);
+  --sh-xs: 0 1px 2px rgb(0 0 0 / 0.35);
+  --sh-sm: 0 1px 3px rgb(0 0 0 / 0.4);
+  --sh: 0 4px 12px -2px rgb(0 0 0 / 0.45);
+  --sh-md: 0 8px 20px -4px rgb(0 0 0 / 0.5);
+  --sh-lg: 0 16px 40px -8px rgb(0 0 0 / 0.55);
+  --sh-xl: 0 24px 56px -12px rgb(0 0 0 / 0.6);
+  --sh-2xl: 0 32px 72px -16px rgb(0 0 0 / 0.65);
 }
 
 /* ============================================================
@@ -255,7 +250,7 @@ html.lp-root { font-size: 16px; }
 
   html {
     font-family: var(--font-sans);
-    font-size: 15px;
+    font-size: 16px;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -315,7 +310,7 @@ html.lp-root { font-size: 16px; }
   line-height: 1.15;
   letter-spacing: -0.02em;
 }
-.text-body { font-size: 15px; font-weight: 400; line-height: 1.6; }
+.text-body { font-size: 14px; font-weight: 400; line-height: 1.6; }
 .text-meta { font-size: 13px; font-weight: 400; line-height: 1.6; }
 .text-label,
 .label-mono {
@@ -399,28 +394,29 @@ html.lp-root { font-size: 16px; }
 /* ============================================================
    WORKSPACE
    ============================================================ */
-/* Panel drag handle */
+/* Panel drag handle: an 8px gap between the inset panels; a line appears on hover. */
 .panel-divider {
-  width: 1px;
+  width: 8px;
   cursor: col-resize;
-  background: var(--hairline);
-  transition: background 0.2s ease, width 0.2s ease;
   position: relative;
   flex-shrink: 0;
   z-index: 10;
 }
-.panel-divider::before {
+.panel-divider::after {
   content: "";
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -3px;
-  right: -3px;
-}
-.panel-divider:hover,
-.panel-divider:active {
-  background: var(--primary);
+  top: 18px;
+  bottom: 18px;
+  left: 50%;
   width: 2px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+.panel-divider:hover::after,
+.panel-divider:active::after {
+  background: var(--ring);
 }
 
 @media (max-width: 768px) {

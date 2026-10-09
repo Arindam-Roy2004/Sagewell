@@ -28,7 +28,7 @@ import {
   BarChart3,
   Recycle,
   ShieldCheck,
-  Sparkles,
+  ScrollText,
   Lock,
   HardDrive,
   Link2,
@@ -142,7 +142,7 @@ export const BENEFITS = {
   right: [
     { icon: Recycle, title: "Reuse what you read", text: "Your library stays ready for the next question." },
     { icon: ShieldCheck, title: "Trust the answer", text: "Citations show exactly where each claim came from." },
-    { icon: Sparkles, title: "Instant summaries", text: "Every new source gets a title and a short summary." },
+    { icon: ScrollText, title: "Instant summaries", text: "Every new source gets a title and a short summary." },
   ],
 };
 

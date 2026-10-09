@@ -1,4 +1,4 @@
-import { FileText, Globe, StickyNote, Quote, Sparkles, FileSpreadsheet } from "lucide-react";
+import { FileText, Globe, StickyNote, Quote, Search, FileSpreadsheet } from "lucide-react";
 import { Rails, Rule, Reveal, LpButton } from "./primitives";
 import { CLOSING } from "./content";
 
@@ -8,7 +8,7 @@ const ORBIT = [
   { icon: Globe, radius: 230, delay: "-8s" },
   { icon: StickyNote, radius: 230, delay: "-16s" },
   { icon: Quote, radius: 150, delay: "-4s" },
-  { icon: Sparkles, radius: 150, delay: "-12s" },
+  { icon: Search, radius: 150, delay: "-12s" },
   { icon: FileSpreadsheet, radius: 150, delay: "-20s" },
 ];
 

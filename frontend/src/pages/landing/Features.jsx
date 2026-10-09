@@ -1,4 +1,4 @@
-import { Database, FileText, Globe, Layers, Paperclip, Send, Sparkles, StickyNote, Boxes } from "lucide-react";
+import { Database, FileText, Globe, Layers, Paperclip, Send, ArrowUpDown, StickyNote, Boxes, Cpu } from "lucide-react";
 import LeafIcon from "@/components/icons/leaf-icon";
 import { Rails, Rule, SectionHeading, Reveal, Chip } from "./primitives";
 import { FEATURES } from "./content";
@@ -19,7 +19,7 @@ function SearchVisual() {
   const rows = [
     { icon: Layers, name: "Meaning search", chip: <Chip tone="green">Active</Chip> },
     { icon: FileText, name: "Keyword search", chip: <Chip tone="green">Active</Chip> },
-    { icon: Sparkles, name: "Re-ranking", chip: <Chip tone="amber">Scoring</Chip> },
+    { icon: ArrowUpDown, name: "Re-ranking", chip: <Chip tone="amber">Scoring</Chip> },
   ];
   return (
     <div className="relative mx-auto mt-10 h-[290px] max-w-md">
@@ -90,7 +90,7 @@ function SourcesDiagram() {
     { icon: StickyNote, label: "Pasted notes" },
   ];
   const right = [
-    { icon: Sparkles, label: "Gemini" },
+    { icon: Cpu, label: "Gemini" },
     { icon: Layers, label: "Vector index" },
     { icon: Database, label: "Passages" },
   ];

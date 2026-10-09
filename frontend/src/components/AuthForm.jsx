@@ -1,10 +1,6 @@
 // Sign-in page. Google is the only sign-in method; the same button creates new accounts.
 // Uses the landing page's visual system (railed column, section rules, coral accent).
-import "@fontsource-variable/inter/opsz.css";
-import "@fontsource/dm-mono/400.css";
-import "@fontsource/dm-mono/500.css";
-
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, KeyRound, Lock, Github, Loader2 } from "lucide-react";
 import { useAuthStore } from "../stores/authStore";
@@ -42,11 +38,6 @@ export default function AuthForm() {
   const { googleLogin, isLoading } = useAuthStore();
   const navigate = useNavigate();
 
-  // Same 16px root as the landing page so the 1280px column lines up.
-  useEffect(() => {
-    document.documentElement.classList.add("lp-root");
-    return () => document.documentElement.classList.remove("lp-root");
-  }, []);
 
   const handleGoogle = async (credential) => {
     const result = await googleLogin(credential);

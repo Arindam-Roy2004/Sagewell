@@ -12,7 +12,7 @@ import {
   StickyNote,
   Layers,
   MessageSquareText,
-  Sparkles,
+  Cpu,
   Clock,
   Send,
 } from "lucide-react";
@@ -31,7 +31,7 @@ const STATS = [
   { icon: Layers, tone: "text-blue-500 bg-blue-500/10", value: "12", label: "Sources in notebook" },
   { icon: MessageSquareText, tone: "text-brand bg-brand/10", value: "48", label: "Questions asked" },
   { icon: Clock, tone: "text-emerald-500 bg-emerald-500/10", value: "3", label: "Open dialogues" },
-  { icon: Sparkles, tone: "text-amber-500 bg-amber-500/10", value: "Gemini", label: "Answer model" },
+  { icon: Cpu, tone: "text-amber-500 bg-amber-500/10", value: "Gemini", label: "Answer model" },
 ];
 
 const ROWS = [

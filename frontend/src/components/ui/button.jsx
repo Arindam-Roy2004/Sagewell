@@ -4,53 +4,47 @@ import { cva } from "class-variance-authority";
 
 import { cn } from "@/lib/utils"
 
-// RoastForge button: uppercase mono label, 1px ink edge, soft lift on hover.
-// `font="sans"` gives a sentence-case label (used on the marketing page).
+// shadcn (new-york) button on the neutral palette. `font="mono"` keeps the old
+// uppercase mono label for the few places that want it.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md border border-border bg-card text-foreground shadow-2xs transition duration-200 cursor-pointer select-none outline-none shrink-0 hover:-translate-y-px hover:shadow-xs active:translate-y-0 active:shadow-none focus-visible:ring-2 focus-visible:ring-ring/45 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:stroke-2 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all cursor-pointer select-none shrink-0 outline-none disabled:pointer-events-none disabled:opacity-50 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        ink: "bg-foreground text-background border-foreground hover:bg-foreground/90",
-        destructive: "bg-destructive text-destructive-foreground border-destructive hover:bg-destructive/90",
-        outline: "bg-background hover:bg-muted",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        // Kept for existing call sites; same look as the primary button.
-        accent: "bg-primary text-primary-foreground hover:bg-primary/90",
-        ghost: "border-transparent bg-transparent shadow-none hover:bg-muted hover:shadow-none hover:translate-y-0",
-        link: "border-transparent bg-transparent shadow-none text-primary-strong underline-offset-4 hover:underline hover:shadow-none hover:translate-y-0",
+        default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+        brand: "bg-brand-app text-white shadow-xs hover:bg-brand-app/90",
+        destructive: "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/30",
+        outline: "border border-border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+        secondary: "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
+        ghost: "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/60",
+        link: "text-primary underline-offset-4 hover:underline",
+        // Older names kept for existing call sites.
+        ink: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+        accent: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
       },
       size: {
-        default: "h-10 px-4",
-        xs: "h-7 gap-1.5 px-2.5",
-        sm: "h-9 gap-1.5 px-3",
-        lg: "h-11 px-6",
-        icon: "size-9 px-0",
-        "icon-sm": "size-8 px-0",
-        "icon-xs": "size-7 px-0",
+        default: "h-9 px-4 py-2 has-[>svg]:px-3",
+        xs: "h-7 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5",
+        sm: "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
+        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
+        icon: "size-9",
+        "icon-sm": "size-8",
+        "icon-xs": "size-7 rounded-md",
       },
       font: {
+        sans: "",
         mono: "label-mono",
-        sans: "font-sans text-sm font-medium normal-case tracking-normal",
       },
     },
     defaultVariants: {
       variant: "default",
       size: "default",
-      font: "mono",
+      font: "sans",
     },
   }
 )
 
-function Button({
-  className,
-  variant = "default",
-  size = "default",
-  font = "mono",
-  asChild = false,
-  ...props
-}) {
+function Button({ className, variant = "default", size = "default", font = "sans", asChild = false, ...props }) {
   const Comp = asChild ? Slot : "button";
   return (
     <Comp
