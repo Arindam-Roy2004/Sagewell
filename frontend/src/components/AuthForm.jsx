@@ -59,11 +59,11 @@ export default function AuthForm() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col overflow-x-clip bg-lp-bg font-landing text-lp-text antialiased selection:bg-brand/25">
+    <div className="landing-theme flex min-h-screen flex-col overflow-x-clip bg-lp-bg font-landing text-lp-text antialiased selection:bg-brand/25">
       <Navbar basePath="/" />
 
       <main className="flex-1 border-b border-lp-line">
-        <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-16 md:py-20 lg:grid-cols-2 lg:gap-20 lg:px-8">
+        <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-16 md:py-20 lg:grid-cols-2 lg:gap-20 lg:px-4">
           {/* Left: copy + sign-in */}
           <div className="mx-auto w-full max-w-[400px] lg:mx-0">
             <MotionDiv {...enter(0)}>

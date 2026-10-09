@@ -89,7 +89,15 @@
   --color-lp-line: var(--lp-line);
   --color-lp-dots: var(--lp-dots);
   --color-lp-link: var(--lp-link);
-  --animate-orbit: orbit 24s linear infinite;
+  /* Notus template tokens (landing page only) */
+  --color-divide: var(--lp-rule);
+  --color-dots: var(--lp-dot);
+  --color-line: var(--lp-stroke);
+  --color-canvas: var(--lp-canvas);
+  --color-canvas-fill: var(--lp-canvas-fill);
+  --color-footer-link: var(--lp-footer-link);
+  --animate-orbit: orbit var(--duration, 24s) linear infinite;
+  --animate-counter-orbit: counter-orbit var(--duration, 24s) linear infinite;
 }
 
 /* Landing page palette (light) */
@@ -104,6 +112,12 @@
   --lp-line: #e5e5e5; /* side rails, cell borders */
   --lp-dots: #eaedf1;
   --lp-link: #676767;
+  --lp-rule: #eaedf1;
+  --lp-dot: #eaedf1;
+  --lp-stroke: #e5e5e5;
+  --lp-canvas: #a1a1a1;
+  --lp-canvas-fill: #d4d4d4;
+  --lp-footer-link: #676767;
 }
 
 /* Landing page palette (dark) */
@@ -118,11 +132,41 @@
   --lp-line: #404040;
   --lp-dots: #262626;
   --lp-link: #d4d4d4;
+  --lp-rule: #262626;
+  --lp-dot: #262626;
+  --lp-stroke: #404040;
+  --lp-canvas: #e5e5e5;
+  --lp-canvas-fill: #262626;
+  --lp-footer-link: #d4d4d4;
+}
+
+/* The Notus template ships its own gray scale (lighter than Tailwind's) and a DM Mono code font.
+   Scoped so the rest of the app keeps Tailwind's defaults. Applied on the landing and auth pages. */
+.landing-theme {
+  --color-gray-100: #f9f9f9;
+  --color-gray-200: #f5f5f5;
+  --color-gray-300: #eaedf1;
+  --color-gray-400: #d7d7d7;
+  --color-gray-500: #c0c0c0;
+  --color-gray-600: #8b8b8b;
+  --font-mono: "DM Mono", ui-monospace, monospace;
 }
 
 @keyframes orbit {
-  from { transform: rotate(0deg) translateX(var(--orbit-radius, 160px)) rotate(0deg); }
-  to { transform: rotate(360deg) translateX(var(--orbit-radius, 160px)) rotate(-360deg); }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes counter-orbit {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+@utility shadow-aceternity {
+  box-shadow:
+    0px 2px 3px -1px #0000001a,
+    0px 1px 0px 0px #191c2105,
+    0px 0px 0px 1px #191c2114;
 }
 
 .lp-dots {

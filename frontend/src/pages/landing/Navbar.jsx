@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
-import { TbMenu2, TbX } from "react-icons/tb";
+import { useRef, useState } from "react";
+import { AnimatePresence, motion, useScroll, useSpring, useTransform } from "motion/react";
 import LeafIcon from "@/components/icons/leaf-icon";
 import ThemeToggle from "@/components/ThemeToggle";
-import { cn } from "@/lib/utils";
-import { LpButton } from "./primitives";
+import { Container, Button } from "./primitives";
+import { HamburgerIcon, CloseIcon } from "./icons";
 import { NAV_LINKS } from "./content";
 
 const MotionDiv = motion.div;
@@ -13,122 +12,142 @@ function Logo({ basePath = "" }) {
   const iconRef = useRef(null);
   return (
     <a
-      href={basePath ? basePath : "#top"}
-      className="flex items-center gap-2 text-lp-heading"
+      href={basePath || "#top"}
+      className="flex items-center gap-2 text-black dark:text-white"
       onMouseEnter={() => iconRef.current?.startAnimation()}
       onMouseLeave={() => iconRef.current?.stopAnimation()}
       aria-label="Sagewell home"
     >
-      <LeafIcon ref={iconRef} size={22} strokeWidth={2.4} className="text-brand" />
-      <span className="font-display text-2xl font-medium tracking-tight">Sagewell</span>
+      <LeafIcon ref={iconRef} size={24} strokeWidth={2.4} className="text-brand" />
+      <span className="text-2xl font-medium">Sagewell</span>
     </a>
   );
 }
 
-function Links({ className, onNavigate, basePath = "" }) {
+const linkClass =
+  "font-medium text-gray-600 transition duration-200 hover:text-neutral-900 dark:text-gray-300 dark:hover:text-neutral-300";
+
+function Links({ basePath }) {
   return (
-    <nav className={className}>
+    <div className="flex items-center gap-10">
       {NAV_LINKS.map((link) => (
-        <a
-          key={link.href}
-          href={`${basePath}${link.href}`}
-          onClick={onNavigate}
-          className="text-[15px] text-lp-text transition-colors hover:text-lp-heading"
-        >
+        <a key={link.label} href={`${basePath}${link.href}`} className={linkClass}>
           {link.label}
         </a>
       ))}
-    </nav>
-  );
-}
-
-function BarContent({ onMenu, menuOpen, basePath }) {
-  return (
-    <div className="flex h-[72px] items-center justify-between gap-6 px-6 md:px-4">
-      <Logo basePath={basePath} />
-      <Links className="hidden items-center gap-10 md:flex" basePath={basePath} />
-      <div className="flex items-center gap-3">
-        <ThemeToggle className="text-lp-text hover:bg-lp-soft hover:text-lp-heading" />
-        <LpButton to="/auth" className="hidden sm:inline-flex">
-          Get started
-        </LpButton>
-        <button
-          type="button"
-          onClick={onMenu}
-          className="inline-flex size-9 items-center justify-center rounded-lg text-lp-heading hover:bg-lp-soft md:hidden cursor-pointer"
-          aria-label={menuOpen ? "Close menu" : "Open menu"}
-          aria-expanded={menuOpen}
-        >
-          {menuOpen ? <TbX className="size-[18px]" /> : <TbMenu2 className="size-[18px]" />}
-        </button>
-      </div>
     </div>
   );
 }
 
-/**
- * Resting navbar with a full-width bottom rule. After 40px of scroll a floating, blurred
- * pill version slides in from the top (the resting bar becomes inert meanwhile).
- */
-/** basePath: "/" when used outside the landing page, so section links point back to it. */
-export default function Navbar({ basePath = "" }) {
-  const [scrolled, setScrolled] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const toggleMenu = () => setMenuOpen((open) => !open);
-  const closeMenu = () => setMenuOpen(false);
-
+function Actions() {
   return (
-    <>
-      <header className="w-full border-b border-lp-line bg-lp-bg" inert={scrolled ? true : undefined}>
-        <div className="mx-auto max-w-7xl">
-          <BarContent onMenu={toggleMenu} menuOpen={menuOpen} basePath={basePath} />
-        </div>
-      </header>
+    <div className="flex items-center gap-2">
+      <ThemeToggle className="rounded-xl p-2 text-gray-600 hover:bg-transparent hover:text-neutral-900 dark:text-gray-300 dark:hover:bg-transparent" />
+      <Button to="/auth">Get started</Button>
+    </div>
+  );
+}
 
+/** Pill that slides in from above once the page has scrolled past the resting bar. */
+function FloatingNav({ basePath }) {
+  const { scrollY } = useScroll();
+  const y = useSpring(useTransform(scrollY, [100, 120], [-100, 10]), { stiffness: 300, damping: 30 });
+  return (
+    <MotionDiv
+      style={{ y }}
+      className="shadow-aceternity fixed inset-x-0 top-0 z-50 mx-auto hidden max-w-[calc(80rem-4rem)] items-center justify-between bg-white/80 px-2 py-2 backdrop-blur-sm md:flex xl:rounded-2xl dark:bg-neutral-900/80 dark:shadow-[0px_2px_0px_0px_var(--color-neutral-800),0px_-2px_0px_0px_var(--color-neutral-800)]"
+    >
+      <Logo basePath={basePath} />
+      <Links basePath={basePath} />
+      <Actions />
+    </MotionDiv>
+  );
+}
+
+function DesktopNav({ basePath }) {
+  return (
+    <div className="hidden items-center justify-between px-4 py-4 md:flex">
+      <Logo basePath={basePath} />
+      <Links basePath={basePath} />
+      <Actions />
+    </div>
+  );
+}
+
+function MobileNav({ basePath }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative flex items-center justify-between p-2 md:hidden">
+      <Logo basePath={basePath} />
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="shadow-aceternity flex size-6 cursor-pointer flex-col items-center justify-center rounded-md"
+        aria-label="Toggle menu"
+      >
+        <HamburgerIcon className="size-4 shrink-0 text-gray-600" />
+      </button>
       <AnimatePresence>
-        {scrolled && (
+        {open && (
           <MotionDiv
-            key="floating-nav"
-            initial={{ y: -100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -100, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="fixed inset-x-0 top-0 z-50 xl:top-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[60] h-full w-full bg-white shadow-lg dark:bg-neutral-900"
           >
-            <div className="mx-auto max-w-[calc(80rem-4rem)] border-b border-lp-line bg-lp-bg/80 shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08)] backdrop-blur-md xl:rounded-2xl xl:border">
-              <BarContent onMenu={toggleMenu} menuOpen={menuOpen} basePath={basePath} />
+            <div className="absolute right-4 bottom-4">
+              <ThemeToggle className="text-gray-600 dark:text-gray-300" />
+            </div>
+            <div className="flex items-center justify-between p-2">
+              <Logo basePath={basePath} />
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="shadow-aceternity flex size-6 cursor-pointer flex-col items-center justify-center rounded-md"
+                aria-label="Toggle menu"
+              >
+                <CloseIcon className="size-4 shrink-0 text-gray-600" />
+              </button>
+            </div>
+            <div className="divide-divide border-divide mt-6 flex flex-col divide-y border-t">
+              {NAV_LINKS.map((link, index) => (
+                <a
+                  key={link.label}
+                  href={`${basePath}${link.href}`}
+                  onClick={() => setOpen(false)}
+                  className="px-4 py-2 font-medium text-gray-600 transition duration-200 hover:text-neutral-900 dark:text-gray-300 dark:hover:text-neutral-300"
+                >
+                  <MotionDiv
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    transition={{ duration: 0.2, delay: 0.1 * index }}
+                  >
+                    {link.label}
+                  </MotionDiv>
+                </a>
+              ))}
+              <div className="mt-4 p-4">
+                <Button to="/auth" onClick={() => setOpen(false)} className="w-full">
+                  Get started
+                </Button>
+              </div>
             </div>
           </MotionDiv>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
 
-      <AnimatePresence>
-        {menuOpen && (
-          <MotionDiv
-            key="mobile-menu"
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.18 }}
-            className={cn(
-              "fixed inset-x-4 top-[80px] z-50 rounded-2xl border border-lp-line bg-lp-bg/95 p-5 shadow-lg backdrop-blur-md md:hidden"
-            )}
-          >
-            <Links className="flex flex-col gap-4" onNavigate={closeMenu} basePath={basePath} />
-            <LpButton to="/auth" className="mt-5 w-full" onClick={closeMenu}>
-              Get started
-            </LpButton>
-          </MotionDiv>
-        )}
-      </AnimatePresence>
-    </>
+/** basePath: "/" when used outside the landing page, so section links point back to it. */
+export default function Navbar({ basePath = "" }) {
+  return (
+    <Container as="nav" className="w-full">
+      <FloatingNav basePath={basePath} />
+      <DesktopNav basePath={basePath} />
+      <MobileNav basePath={basePath} />
+    </Container>
   );
 }
