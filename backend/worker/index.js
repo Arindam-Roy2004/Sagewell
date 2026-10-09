@@ -1,6 +1,7 @@
 import "../shared/libs/env.js";
 import "../shared/libs/llm.js";
 import { Worker } from "bullmq";
+import mongoose from "mongoose";
 import { processSource } from "./processors/sourceProcessor.js";
 import { processSourceDeletion } from "./processors/deleteSourceProcessor.js";
 import { processChatSummary } from "./processors/chatSummaryProcessor.js";
@@ -121,3 +122,20 @@ const traceWorker = new Worker(
 traceWorker.on("failed", (job, err) => {
   console.error(`❌ Trace logging job ${job.id} failed:`, err.message);
 });
+
+// Graceful shutdown: on SIGTERM (docker stop during a deploy) stop taking new jobs and
+// let running ones finish, instead of being killed mid-job and retried as "stalled".
+const workers = [sourceWorker, deleteSourceWorker, chatSummaryWorker, memoryWorker, traceWorker];
+let shuttingDown = false;
+
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received: finishing active jobs, then exiting`);
+  await Promise.allSettled(workers.map((w) => w.close()));
+  await mongoose.disconnect().catch(() => {});
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

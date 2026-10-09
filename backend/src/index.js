@@ -116,9 +116,22 @@ db()
   ?.then(() => {
     initNeo4jConstraints().catch((e) => console.warn("Neo4j init error:", e.message));
     initQdrantIndexes().catch((e) => console.warn("Qdrant init error:", e.message));
-    app.listen(port, () => {
+    const server = app.listen(port, () => {
       logger.info(`Server is running on port ${port}`);
     });
+
+    // Graceful shutdown: on SIGTERM (docker stop during a deploy) stop accepting new
+    // connections and let in-flight requests finish. The timer is a backstop for
+    // long-lived streams; Docker's own stop timeout would SIGKILL us anyway.
+    const shutdown = (signal) => {
+      logger.info(`${signal} received: closing server`);
+      server.close(() => {
+        mongoose.disconnect().finally(() => process.exit(0));
+      });
+      setTimeout(() => process.exit(0), 8000).unref();
+    };
+    process.once("SIGTERM", () => shutdown("SIGTERM"));
+    process.once("SIGINT", () => shutdown("SIGINT"));
   })
   .catch((e) => {
     logger.fatal({ err: e }, "Could not connect to MongoDB");

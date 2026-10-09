@@ -4,7 +4,8 @@ WORKDIR /app/worker
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 # Install worker dependencies
 COPY worker/package*.json ./
-RUN npm install --omit=dev --legacy-peer-deps
+# `npm ci` installs exactly what package-lock.json pins, so every build is reproducible.
+RUN npm ci --omit=dev --legacy-peer-deps
 
 FROM node:22-alpine AS runner
 WORKDIR /app
