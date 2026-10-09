@@ -54,11 +54,11 @@ export function SectionHeading({ eyebrow, title, subtitle, className, children }
         </Reveal>
       )}
       <Reveal delay={0.05}>
-        <h2 className="mt-3 font-display text-3xl font-normal tracking-tight text-lp-heading md:text-4xl">{title}</h2>
+        <h2 className="mt-3 font-display text-3xl font-normal tracking-tight text-balance text-lp-heading md:text-4xl">{title}</h2>
       </Reveal>
       {subtitle && (
         <Reveal delay={0.1}>
-          <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-lp-text">{subtitle}</p>
+          <p className="mx-auto mt-5 max-w-lg text-balance text-base leading-relaxed text-lp-text">{subtitle}</p>
         </Reveal>
       )}
       {children}

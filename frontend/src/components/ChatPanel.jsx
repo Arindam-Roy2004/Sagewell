@@ -29,7 +29,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -429,17 +428,6 @@ export default function ChatPanel({ headerActions }) {
         </DropdownMenu>
 
         <div className="flex shrink-0 items-center gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge variant={activeSourcesCount ? 'muted' : 'destructive'} className="hidden h-7 gap-1.5 tabular-nums sm:inline-flex">
-                <Layers /> {activeSourcesCount}
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {activeSourcesCount ? `${activeSourcesCount} source${activeSourcesCount > 1 ? 's' : ''} in use` : 'No sources selected'}
-            </TooltipContent>
-          </Tooltip>
-
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon-sm" onClick={handleNewChat} aria-label="New dialogue">

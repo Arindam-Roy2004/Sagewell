@@ -96,9 +96,9 @@ function SourcesDiagram() {
   ];
   return (
     <div className="relative mt-10 grid items-center gap-8 md:grid-cols-[1fr_auto_1fr]">
-      <ul className="space-y-5">
+      <ul className="space-y-4">
         {left.map(({ icon: Icon, label }) => (
-          <li key={label} className="flex items-center gap-3 text-[15px] text-lp-heading">
+          <li key={label} className="flex h-9 items-center gap-3 text-[15px] text-lp-heading">
             <Icon className="size-4" /> {label}
             <span className="hidden h-px flex-1 bg-lp-line md:block" />
           </li>
@@ -110,9 +110,9 @@ function SourcesDiagram() {
         </span>
         <Chip tone="blue">Indexed</Chip>
       </div>
-      <ul className="space-y-5">
+      <ul className="space-y-4">
         {right.map(({ icon: Icon, label }) => (
-          <li key={label} className="flex items-center gap-3 text-[15px] text-lp-heading">
+          <li key={label} className="flex h-9 items-center gap-3 text-[15px] text-lp-heading">
             <span className="hidden h-px flex-1 bg-lp-line md:block" />
             <span className="inline-flex size-9 items-center justify-center rounded-lg border border-lp-line bg-lp-bg shadow-[0_1px_2px_rgb(0_0_0/0.05)]">
               <Icon className="size-4" />

@@ -28,7 +28,7 @@ export default function Hero() {
             </h1>
           </MotionDiv>
           <MotionDiv {...enter(0.16)}>
-            <p className="mx-auto mt-6 max-w-lg text-base leading-relaxed text-lp-text md:text-lg">{HERO.subtitle}</p>
+            <p className="mx-auto mt-6 max-w-lg text-balance text-base leading-relaxed text-lp-text md:text-lg">{HERO.subtitle}</p>
           </MotionDiv>
           <MotionDiv {...enter(0.24)} className="mt-8 flex flex-wrap items-center justify-center gap-4">
             <LpButton to="/auth">Get started</LpButton>
@@ -52,13 +52,13 @@ export default function Hero() {
           transition={{ duration: 0.8, ease: [0.25, 0.1, 0.25, 1], delay: 0.35 }}
         >
           {/* Real screenshots of the Sagewell workspace (sample notebook), swapped with the theme. */}
-          <div className="overflow-hidden rounded-xl border border-lp-line bg-lp-bg shadow-[0_20px_60px_-20px_rgb(0_0_0/0.18)]">
+          <div className="overflow-x-auto rounded-xl border border-lp-line bg-lp-bg shadow-[0_20px_60px_-20px_rgb(0_0_0/0.18)] [scrollbar-width:thin]">
             <img
               src="/images/app-light.webp"
               alt="The Sagewell workspace: sources on the left, a document summary in the middle, and a dialogue with cited answers on the right"
               width={2160}
               height={1290}
-              className="block h-auto w-full dark:hidden"
+              className="block h-auto w-full min-w-[760px] dark:hidden"
               loading="eager"
             />
             <img
@@ -66,7 +66,7 @@ export default function Hero() {
               alt="The Sagewell workspace in dark mode"
               width={2160}
               height={1290}
-              className="hidden h-auto w-full dark:block"
+              className="hidden h-auto w-full min-w-[760px] dark:block"
               loading="eager"
             />
           </div>

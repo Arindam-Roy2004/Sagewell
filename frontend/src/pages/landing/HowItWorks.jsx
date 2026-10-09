@@ -11,7 +11,7 @@ const STEP_MS = 6000;
 /** A small node card in the diagram (header row + body). */
 function NodeCard({ icon: Icon, title, meta, children, className }) {
   return (
-    <div className={cn("w-[210px] rounded-lg border border-lp-line bg-lp-bg shadow-[0_1px_2px_rgb(0_0_0/0.04)]", className)}>
+    <div className={cn("w-[210px] max-w-full rounded-lg border border-lp-line bg-lp-bg shadow-[0_1px_2px_rgb(0_0_0/0.04)]", className)}>
       <div className="flex items-center justify-between gap-2 border-b border-lp-line px-3 py-2.5 text-[13px]">
         <span className="flex items-center gap-2 text-lp-heading">
           <Icon className="size-3.5" /> {title}
@@ -24,23 +24,33 @@ function NodeCard({ icon: Icon, title, meta, children, className }) {
 }
 
 const VISUALS = [
-  // Step 1: sources flowing into the notebook
+  // Step 1: sources flowing into the notebook (a small tree: notebook, a bus line, three sources)
   () => (
-    <div className="relative flex h-full flex-col items-center justify-center gap-10">
-      <NodeCard icon={BookOpen} title="Notebook" meta="3 sources">
+    <div className="flex h-full flex-col items-center justify-center">
+      <NodeCard icon={BookOpen} title="Notebook" meta="3 sources" className="w-[200px]">
         <Chip tone="blue">Indexing</Chip>
       </NodeCard>
-      <div className="pointer-events-none absolute top-1/2 left-1/2 h-10 w-px -translate-x-1/2 bg-lp-line" />
-      <div className="flex gap-4">
-        <NodeCard icon={FileText} title="PDF" meta="2.4 MB" className="w-[150px] sm:w-[180px]">
-          <Chip tone="green">Ready</Chip>
-        </NodeCard>
-        <NodeCard icon={Globe} title="Web page" className="hidden w-[180px] sm:block">
-          <Chip tone="amber">Reading</Chip>
-        </NodeCard>
-        <NodeCard icon={StickyNote} title="Notes" className="w-[150px] sm:w-[180px]">
-          <Chip tone="green">Ready</Chip>
-        </NodeCard>
+      <div className="h-6 w-px bg-lp-line" aria-hidden="true" />
+      <div className="relative w-full max-w-[560px]">
+        {/* Horizontal bus: from the centre of the first column to the centre of the last */}
+        <div
+          className="absolute top-0 h-px bg-lp-line left-[25%] right-[25%] sm:left-[16.667%] sm:right-[16.667%]"
+          aria-hidden="true"
+        />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {[
+            { icon: FileText, title: "PDF", meta: "2.4 MB", chip: <Chip tone="green">Ready</Chip>, extra: "" },
+            { icon: Globe, title: "Web page", meta: "", chip: <Chip tone="amber">Reading</Chip>, extra: "hidden sm:flex" },
+            { icon: StickyNote, title: "Notes", meta: "", chip: <Chip tone="green">Ready</Chip>, extra: "" },
+          ].map(({ icon, title, meta, chip, extra }) => (
+            <div key={title} className={cn("flex-col items-center", extra || "flex")}>
+              <div className="h-6 w-px bg-lp-line" aria-hidden="true" />
+              <NodeCard icon={icon} title={title} meta={meta} className="w-full">
+                {chip}
+              </NodeCard>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   ),

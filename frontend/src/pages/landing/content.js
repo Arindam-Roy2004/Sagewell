@@ -41,7 +41,6 @@ export const ISSUES_URL = `${REPO_URL}/issues`;
 export const NAV_LINKS = [
   { label: "How it works", href: "#how-it-works" },
   { label: "Features", href: "#features" },
-  { label: "Pricing", href: "#pricing" },
   { label: "FAQ", href: "#faq" },
 ];
 
@@ -110,7 +109,7 @@ export const FEATURES = {
     text: "Files, notes and web pages are split into passages, indexed for search, and stay linked to their origin.",
   },
   small: [
-    { icon: KeyRound, title: "Google sign-in", text: "Sign in with one click, or use an email and password if you prefer." },
+    { icon: KeyRound, title: "Google sign-in", text: "Sign in with your Google account. There is no password to create or remember." },
     { icon: History, title: "Conversation memory", text: "Long chats are summarized in the background so earlier context isn’t lost." },
     { icon: Github, title: "Open source", text: "Read the code, run it on your own machine, or suggest an improvement." },
   ],
@@ -155,55 +154,6 @@ export const OPEN_SOURCE = {
   stat: "100%",
   statLabel: "Open source",
   stack: ["React", "Express", "MongoDB", "Qdrant", "Redis", "Gemini", "LangChain", "Context.dev"],
-};
-
-export const PRICING = {
-  eyebrow: "Pricing",
-  title: "Simple, honest pricing",
-  tiers: [
-    {
-      name: "Explore",
-      tagline: "Hosted, during the beta",
-      price: "$0",
-      unit: "/beta",
-      cta: { label: "Get started", to: "/auth", variant: "outline" },
-      features: [
-        "Your own private notebooks",
-        "PDF, Word, CSV, text and web sources",
-        "Answers with clickable citations",
-        "Google sign-in",
-        "Conversation memory",
-      ],
-    },
-    {
-      name: "Self-host",
-      tagline: "Run it on your own servers",
-      price: "$0",
-      unit: "/open source",
-      highlighted: true,
-      cta: { label: "View on GitHub", href: REPO_URL, variant: "brand" },
-      features: [
-        "Everything in Explore",
-        "Your own Gemini, database and storage keys",
-        "Files stay in your own storage bucket",
-        "Docker files included",
-        "Change anything you like",
-      ],
-    },
-    {
-      name: "Contribute",
-      tagline: "Help shape what comes next",
-      price: "Free",
-      unit: "/always",
-      cta: { label: "Open an issue", href: ISSUES_URL, variant: "outline" },
-      features: [
-        "Report bugs and request features",
-        "Send pull requests",
-        "Discuss ideas in GitHub issues",
-        "Credit in the project history",
-      ],
-    },
-  ],
 };
 
 export const PRIVACY = {
@@ -264,7 +214,7 @@ export const FOOTER = {
       links: [
         { label: "How it works", href: "#how-it-works" },
         { label: "Features", href: "#features" },
-        { label: "Pricing", href: "#pricing" },
+        { label: "Use cases", href: "#use-cases" },
         { label: "FAQ", href: "#faq" },
       ],
     },
@@ -278,10 +228,7 @@ export const FOOTER = {
     },
     {
       title: "Account",
-      links: [
-        { label: "Sign in", to: "/auth" },
-        { label: "Get started", to: "/auth" },
-      ],
+      links: [{ label: "Sign in or sign up", to: "/auth" }],
     },
   ],
 };

@@ -8,7 +8,6 @@ import Features from "./landing/Features";
 import UseCases from "./landing/UseCases";
 import Benefits from "./landing/Benefits";
 import OpenSource from "./landing/OpenSource";
-import Pricing from "./landing/Pricing";
 import Privacy from "./landing/Privacy";
 import Faq from "./landing/Faq";
 import ClosingCta from "./landing/ClosingCta";
@@ -38,7 +37,6 @@ export default function LandingPage() {
         <UseCases />
         <Benefits />
         <OpenSource />
-        <Pricing />
         <Privacy />
         <Faq />
         <ClosingCta />

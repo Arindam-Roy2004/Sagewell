@@ -65,7 +65,7 @@ export default function AuthForm() {
       <main className="flex-1 border-b border-lp-line">
         <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-16 md:py-20 lg:grid-cols-2 lg:gap-20 lg:px-8">
           {/* Left: copy + sign-in */}
-          <div className="mx-auto w-full max-w-[528px] lg:mx-0">
+          <div className="mx-auto w-full max-w-[400px] lg:mx-0">
             <MotionDiv {...enter(0)}>
               <span
                 className="inline-flex text-lp-heading"
@@ -86,7 +86,7 @@ export default function AuthForm() {
             <MotionDiv {...enter(0.12)} className="mt-9">
               {GOOGLE_CONFIGURED ? (
                 <div className="w-full">
-                  <GoogleSignInButton onCredential={handleGoogle} lightTheme="filled_black" darkTheme="outline" align="start" />
+                  <GoogleSignInButton onCredential={handleGoogle} lightTheme="filled_black" darkTheme="outline" />
                 </div>
               ) : (
                 <p className="rounded-lg border border-lp-line bg-lp-soft px-4 py-3 text-[14px] text-lp-heading">
