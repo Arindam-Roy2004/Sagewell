@@ -2,6 +2,7 @@ import "./env.js";
 import neo4j from "neo4j-driver";
 
 let driverInstance = null;
+let warnedMissingCredentials = false;
 
 /**
  * Returns a shared singleton Neo4j driver with connection pooling.
@@ -17,7 +18,11 @@ export function getNeo4jDriver() {
     const password = process.env.NEO4J_PASSWORD;
 
     if (!uri || !user || !password) {
-      console.warn("⚠️ Neo4j credentials missing in environment variables.");
+      // Neo4j is optional; say so once instead of on every chat turn.
+      if (!warnedMissingCredentials) {
+        warnedMissingCredentials = true;
+        console.warn("⚠️ Neo4j not configured; the memory graph is disabled.");
+      }
       return null;
     }
 
@@ -72,6 +77,7 @@ export async function closeNeo4jDriver() {
  * Runs idempotently to prevent unindexed full graph scans.
  */
 export async function initNeo4jConstraints() {
+  if (!getNeo4jDriver()) return;
   try {
     await executeCypher(`
       CREATE CONSTRAINT user_id_unique IF NOT EXISTS
