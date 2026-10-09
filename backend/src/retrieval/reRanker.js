@@ -1,6 +1,6 @@
 import "../../shared/libs/env.js";
 import { z } from "zod";
-import { Agent, run } from "@openai/agents";
+import { Agent, run, MODELS } from "../../shared/libs/llm.js";
 import { typeSafeClient } from "../../shared/libs/typesafe.js";
 import { score } from "@typesafe-ai/sdk";
 
@@ -25,7 +25,7 @@ export const RerankScoresSchema = z.object({
 // 2. Define the LLM Relevance Scorer Agent
 const relevanceScorerAgent = new Agent({
   name: "relevance-scorer",
-  model: "gpt-4.1-mini",
+  model: MODELS.main,
   outputType: RerankScoresSchema,
   instructions: `You are a strict retrieval precision grader.
 Evaluate candidate document passages against the user's question, taking into account the recent conversation context if the question contains pronouns or refers to prior turns (e.g. "Why did that happen?", "Tell me more about it").

@@ -1,6 +1,6 @@
 import "../../shared/libs/env.js";
 import { z } from "zod";
-import { Agent, run } from "@openai/agents";
+import { Agent, run, MODELS } from "../../shared/libs/llm.js";
 
 // 1. Define Zod schema for structured query translations
 export const QueryTranslationSchema = z.object({
@@ -30,7 +30,7 @@ export const QueryTranslationSchema = z.object({
 // 2. Define the Query Translator Agent (Fast Nano model)
 const queryTranslatorAgent = new Agent({
   name: "query-translator",
-  model: "gpt-4.1-nano",
+  model: MODELS.light,
   outputType: QueryTranslationSchema,
   instructions: `You are an ultra-fast retrieval query analysis engine for an advanced RAG system.
 Given the user's question and recent conversation history, generate:

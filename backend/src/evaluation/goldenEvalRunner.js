@@ -1,6 +1,6 @@
 import "../../shared/libs/env.js";
 import { z } from "zod";
-import { Agent, run } from "@openai/agents";
+import { Agent, run, MODELS } from "../../shared/libs/llm.js";
 import GoldenDataset from "../../shared/models/goldenDataset.model.js";
 import EvaluationRun from "../../shared/models/evaluationRun.model.js";
 import { retrievalPipeline } from "../retrieval/pipeline.js";
@@ -31,7 +31,7 @@ export const AnswerCorrectnessSchema = z.object({
 
 const answerCorrectnessAgent = new Agent({
   name: "answer-correctness-judge",
-  model: "gpt-4.1-mini",
+  model: MODELS.main,
   outputType: AnswerCorrectnessSchema,
   instructions: `You are an expert AI evaluation judge assessing the FACTUAL CORRECTNESS of an AI-generated answer against a verified GROUND TRUTH GOLDEN ANSWER.
 
@@ -58,7 +58,7 @@ export const ContextRecallSchema = z.object({
 
 const contextRecallAgent = new Agent({
   name: "context-recall-judge",
-  model: "gpt-4.1-mini",
+  model: MODELS.main,
   outputType: ContextRecallSchema,
   instructions: `You are an expert AI evaluation judge assessing CONTEXT RECALL for a RAG retrieval engine.
 Your job is to determine whether the RETRIEVED CONTEXT successfully recalled the necessary facts present in the GROUND TRUTH CONTEXT.
@@ -70,7 +70,7 @@ If the retrieved context contains all the necessary information, score is 1.0.`,
 // Generation agent to produce response for golden questions during eval
 const evalGenerationAgent = new Agent({
   name: "eval-rag-generator",
-  model: "gpt-4.1-mini",
+  model: MODELS.main,
   instructions: `You are an AI research assistant. Answer the user question accurately, thoroughly, and strictly using the provided document evidence.
 If evidence is insufficient, state so clearly.`,
 });

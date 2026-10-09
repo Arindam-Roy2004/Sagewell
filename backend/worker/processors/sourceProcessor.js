@@ -4,7 +4,7 @@ import { processFile } from "./fileProcessor.js";
 import { embeddings } from "../../shared/libs/embeddings.js";
 import { QdrantVectorStore } from "@langchain/qdrant";
 import { z } from "zod";
-import { Agent, run } from "@openai/agents";
+import { Agent, run, MODELS } from "../../shared/libs/llm.js";
 import { processText } from "./textProcessor.js";
 import { processWeb } from "./webProcessor.js";
 import crypto from "crypto";
@@ -60,7 +60,7 @@ export const SourceSummarySchema = z.object({
 // Agent SDK Document Summarizer Agent
 const sourceSummarizerAgent = new Agent({
   name: "source-summarizer",
-  model: "gpt-4.1-nano",
+  model: MODELS.light,
   outputType: SourceSummarySchema,
   instructions: `You are an expert document analysis and executive summarization engine for an AI research notebook.
 Analyze the provided document macro-sections (which span the introduction, core sections, and conclusions) and generate:

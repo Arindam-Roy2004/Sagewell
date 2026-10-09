@@ -24,7 +24,7 @@ Chat with your own documents. Upload a file, paste some text, or add a web page,
 | Worker | Node + BullMQ (background jobs) |
 | Data | MongoDB (Mongoose), Qdrant (vectors), Redis (queues), Neo4j (optional memory graph) |
 | File storage | S3 / Cloudflare R2 |
-| AI | OpenAI, LangChain.js, OpenAI Agents SDK |
+| AI | Google Gemini (AI SDK Google provider), LangChain.js |
 
 ---
 
@@ -36,7 +36,7 @@ Browser ──▶ API (backend/src) ──▶ Redis queue ──▶ Worker (back
    │            ├── MongoDB   (users, chats, chunks)│
    │            ├── S3 / R2   (uploaded files) ◀────┤
    │            ├── Qdrant    (search index)  ◀─────┘
-   │            └── OpenAI    (answers, summaries, embeddings)
+   │            └── Gemini    (answers, summaries, embeddings)
    └── streamed answer
 ```
 

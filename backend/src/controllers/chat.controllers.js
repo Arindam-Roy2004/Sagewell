@@ -1,6 +1,6 @@
 import "dotenv/config";
 import mongoose from "mongoose";
-import { Agent, run } from "@openai/agents";
+import { Agent, run, MODELS } from "../../shared/libs/llm.js";
 import Chat from "../../shared/models/chat.model.js";
 import Source from "../../shared/models/source.model.js";
 import {
@@ -17,7 +17,7 @@ import { createTraceSession } from "../utils/traceMiddleware.js";
 // ─────────────────────────────────────────────────────────────────────────────
 const chatAssistantAgent = new Agent({
   name: "sagewell-chat-agent",
-  model: "gpt-4.1-mini",
+  model: MODELS.main,
   instructions: `You are Sagewell, an AI research assistant analyzing documents and pair-programming with the user.
 Answer the user's questions clearly, accurately, and strictly grounded in the provided document evidence and personal context.
 

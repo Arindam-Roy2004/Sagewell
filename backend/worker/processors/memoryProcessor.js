@@ -1,6 +1,6 @@
 import "../../shared/libs/env.js";
 import { z } from "zod";
-import { Agent, run } from "@openai/agents";
+import { Agent, run, MODELS } from "../../shared/libs/llm.js";
 import { Document } from "@langchain/core/documents";
 import { embeddings } from "../../shared/libs/embeddings.js";
 import { QdrantVectorStore } from "@langchain/qdrant";
@@ -43,7 +43,7 @@ export const MemoryBatchSchema = z.object({
 // 2. Define the Agent SDK Memory Batch Extraction Agent
 const memoryExtractorAgent = new Agent({
   name: "memory-batch-extractor",
-  model: "gpt-4.1-mini",
+  model: MODELS.main,
   outputType: MemoryBatchSchema,
   instructions: `You are an expert cognitive memory extraction engine for a personal AI research notebook.
 Analyze the provided batch of conversation messages (up to 40 turns) between the user and assistant.

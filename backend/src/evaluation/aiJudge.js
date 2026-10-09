@@ -1,6 +1,6 @@
 import "../../shared/libs/env.js";
 import { z } from "zod";
-import { Agent, run } from "@openai/agents";
+import { Agent, run, MODELS } from "../../shared/libs/llm.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Faithfulness / Hallucination Judge
@@ -27,7 +27,7 @@ export const FaithfulnessSchema = z.object({
 
 const faithfulnessJudgeAgent = new Agent({
   name: "faithfulness-evaluator",
-  model: "gpt-4.1-mini",
+  model: MODELS.main,
   outputType: FaithfulnessSchema,
   instructions: `You are an expert AI evaluation judge specializing in RAG faithfulness and grounding verification.
 Your task is to determine whether every single factual claim made in the ASSISTANT ANSWER is strictly derived from and supported by the RETRIEVED CONTEXT.
@@ -67,7 +67,7 @@ export const AnswerRelevanceSchema = z.object({
 
 const answerRelevanceJudgeAgent = new Agent({
   name: "answer-relevance-evaluator",
-  model: "gpt-4.1-mini",
+  model: MODELS.main,
   outputType: AnswerRelevanceSchema,
   instructions: `You are an expert AI evaluation judge assessing whether the ASSISTANT ANSWER directly answers the USER QUESTION.
 
@@ -104,7 +104,7 @@ export const ContextPrecisionSchema = z.object({
 
 const contextPrecisionJudgeAgent = new Agent({
   name: "context-precision-evaluator",
-  model: "gpt-4.1-mini",
+  model: MODELS.main,
   outputType: ContextPrecisionSchema,
   instructions: `You are an expert evaluation judge assessing the quality of RETRIEVED DOCUMENT PASSAGES for a given USER QUESTION.
 

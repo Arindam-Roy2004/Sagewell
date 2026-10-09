@@ -1,6 +1,6 @@
 import "../../shared/libs/env.js";
 import { z } from "zod";
-import { Agent, run } from "@openai/agents";
+import { Agent, run, MODELS } from "../../shared/libs/llm.js";
 import { typeSafeClient } from "../../shared/libs/typesafe.js";
 import { choice } from "@typesafe-ai/sdk";
 
@@ -55,7 +55,7 @@ const STRATEGY_CONFIGS = {
 // 3. Agent definition using OpenAI Agents SDK with structured output
 const adaptiveRouterAgent = new Agent({
   name: "adaptive-router",
-  model: "gpt-4.1-mini",
+  model: MODELS.main,
   outputType: AdaptiveStrategySchema,
   instructions: `You are an intelligent query routing engine for an AI research notebook system.
 Analyze the user's latest query along with any prior conversation history to choose the optimal retrieval strategy:

@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-React (Vite), Zustand, Tailwind CSS, Radix UI / ShadCN, Node.js + Express, MongoDB, Qdrant Vector DB, OpenAI SDK & LangChain.js
+React (Vite), Zustand, Tailwind CSS, Radix UI / ShadCN, Node.js + Express, MongoDB, Qdrant Vector DB, Google Gemini & LangChain.js
 
 ## Users
 

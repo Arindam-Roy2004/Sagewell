@@ -1,6 +1,6 @@
 import "../../shared/libs/env.js";
 import { z } from "zod";
-import { Agent, run } from "@openai/agents";
+import { Agent, run, MODELS } from "../../shared/libs/llm.js";
 import { typeSafeClient } from "../../shared/libs/typesafe.js";
 import { score, noul } from "@typesafe-ai/sdk";
 
@@ -36,7 +36,7 @@ export const ContextGradeSchema = z.object({
 // 2. Define the Context Grader Agent (Fallback)
 const contextGraderAgent = new Agent({
   name: "context-grader",
-  model: "gpt-4.1-mini",
+  model: MODELS.main,
   outputType: ContextGradeSchema,
   instructions: `You are a strict retrieval completeness evaluator and diagnostic grader for an AI research system (CRAG - Corrective RAG).
 Your job is to evaluate the ENTIRE retrieved context package against the user's question:

@@ -1,6 +1,6 @@
 import "../../shared/libs/env.js";
 import { z } from "zod";
-import { Agent, run } from "@openai/agents";
+import { Agent, run, MODELS } from "../../shared/libs/llm.js";
 import { typeSafeClient } from "../../shared/libs/typesafe.js";
 import { noul } from "@typesafe-ai/sdk";
 
@@ -25,7 +25,7 @@ export const ChannelRoutingSchema = z.object({
 // 2. Define the Channel Router Agent (Fallback)
 const channelRouterAgent = new Agent({
   name: "channel-router",
-  model: "gpt-4.1-mini",
+  model: MODELS.main,
   outputType: ChannelRoutingSchema,
   instructions: `You are a search channel router for an advanced enterprise hybrid RAG engine.
 Analyze the given query and select which storage channels should be queried:

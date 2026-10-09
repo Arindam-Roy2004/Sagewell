@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 import { v4 as uuidv4 } from "uuid";
-import { addTraceProcessor } from "@openai/agents";
+import { addTraceProcessor } from "../../shared/libs/llm.js";
 import { getSharedRedisClient } from "../../shared/libs/redis.js";
 
 // BullMQ Queue instance for asynchronous trace persistence in worker
@@ -9,8 +9,8 @@ export const traceQueue = new Queue("trace-logging", {
 });
 
 /**
- * Global custom trace processor for @openai/agents
- * Collects runtime SDK agent spans and traces.
+ * Global custom trace processor for Google Gemini agents
+ * Collects runtime agent spans and traces.
  */
 class AgentSDKTraceCollector {
   async onTraceStart(trace) {

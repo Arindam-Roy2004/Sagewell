@@ -1,6 +1,6 @@
 import "../../shared/libs/env.js";
 import { z } from "zod";
-import { Agent, run } from "@openai/agents";
+import { Agent, run, MODELS } from "../../shared/libs/llm.js";
 import Chunk from "../../shared/models/chunk.model.js";
 import GoldenDataset from "../../shared/models/goldenDataset.model.js";
 
@@ -26,7 +26,7 @@ export const GoldenQAPairSchema = z.object({
 
 const goldenGeneratorAgent = new Agent({
   name: "golden-dataset-generator",
-  model: "gpt-4.1-mini",
+  model: MODELS.main,
   outputType: GoldenQAPairSchema,
   instructions: `You are an expert AI evaluation engineer creating a "Golden Evaluation Dataset" (ground-truth test cases) for benchmarking a multi-source RAG system.
 Given a section of text from a user document:

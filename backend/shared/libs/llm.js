@@ -1,38 +1,112 @@
 import "./env.js";
-import { setDefaultModelProvider, setTracingDisabled } from "@openai/agents";
-import { aisdk } from "@openai/agents-extensions/ai-sdk";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { generateText, streamText, Output } from "ai";
 
 /**
- * Routes every `Agent({ model: "..." })` call in the app to Google Gemini.
+ * Gemini agent runner, built on the AI SDK's Google provider.
  *
- * The agents in this codebase still name OpenAI models ("gpt-4.1-mini", "gpt-4.1-nano").
- * Instead of editing ~16 files, this provider maps those names to Gemini models in one place.
- * Embeddings (search vectors) are separate: see shared/libs/embeddings.js.
+ * An `Agent` is a named prompt (system instructions + model + optional zod output schema).
+ * `run(agent, prompt)` returns `{ finalOutput }`: the parsed object when the agent has an
+ * `outputType`, otherwise plain text. `run(agent, prompt, { stream: true, signal })`
+ * returns an object whose `toTextStream()` yields text chunks as they arrive.
  *
- * Override the Gemini models in .env if you want different ones:
- *   GEMINI_MODEL_MAIN  - answers, rerank, grading, routing (default: gemini-3.8-flash)
- *   GEMINI_MODEL_LIGHT - cheap/fast tasks like summaries   (default: gemini-3.5-flash-lite)
+ * Models (override in backend/.env):
+ *   GEMINI_MODEL_MAIN  - answers, re-ranking, grading, routing, evaluation
+ *   GEMINI_MODEL_LIGHT - quick tasks: query rewriting, summaries
  */
-// The Agents SDK normally uploads a log of every agent run to OpenAI's dashboard. We use Gemini and
-// have no OpenAI key, so turn that off (otherwise it prints "No API key provided for OpenAI tracing
-// exporter" after every run). The app's own observability traces do not depend on this.
-setTracingDisabled(true);
-
 const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
 
-const MAIN_MODEL = process.env.GEMINI_MODEL_MAIN || "gemini-3.8-flash";
-const LIGHT_MODEL = process.env.GEMINI_MODEL_LIGHT || "gemini-3.5-flash-lite";
-
-const MODEL_MAP = {
-  "gpt-4.1-mini": MAIN_MODEL,
-  "gpt-4.1-nano": LIGHT_MODEL,
+export const MODELS = {
+  main: process.env.GEMINI_MODEL_MAIN || "gemini-3.8-flash",
+  light: process.env.GEMINI_MODEL_LIGHT || "gemini-3.5-flash-lite",
 };
 
-setDefaultModelProvider({
-  getModel(modelName) {
-    // Unknown or missing names fall back to the main model; a real Gemini id passes through.
-    const geminiName = MODEL_MAP[modelName] || (modelName?.startsWith("gemini") ? modelName : MAIN_MODEL);
-    return aisdk(google(geminiName));
-  },
-});
+/** Accepts a tier name ("main" / "light") or a full Gemini model id. */
+export function resolveModelName(model) {
+  return MODELS[model] || model || MODELS.main;
+}
+
+export function getGoogleModel(model) {
+  return google(resolveModelName(model));
+}
+
+// Optional lifecycle hooks (see src/utils/traceMiddleware.js). Hook errors never break a run.
+const traceProcessors = new Set();
+
+export function addTraceProcessor(processor) {
+  if (processor) traceProcessors.add(processor);
+}
+
+async function notify(hook, payload) {
+  for (const processor of traceProcessors) {
+    if (typeof processor[hook] !== "function") continue;
+    try {
+      await processor[hook](payload);
+    } catch {
+      // tracing must never affect the request
+    }
+  }
+}
+
+export class Agent {
+  constructor({ name, model, instructions, outputType } = {}) {
+    this.name = name || "gemini-agent";
+    this.model = resolveModelName(model);
+    this.instructions = instructions || "";
+    this.outputType = outputType || null;
+  }
+}
+
+export async function run(agent, prompt, options = {}) {
+  const modelName = agent.model;
+  const model = google(modelName);
+  const system = agent.instructions || undefined;
+  const signal = options.signal;
+
+  await notify("onSpanStart", { agent: agent.name, model: modelName, prompt });
+
+  try {
+    if (options.stream) {
+      const result = streamText({
+        model,
+        system,
+        prompt,
+        abortSignal: signal,
+        // streamText reports failures here instead of throwing; log them so a broken
+        // stream is visible in the API logs (the caller sees the stream end early).
+        onError: ({ error }) => {
+          if (signal?.aborted) return;
+          console.error(`❌ [${agent.name}] Gemini stream error:`, error?.message || error);
+        },
+      });
+      return {
+        stream: result,
+        textStream: result.textStream,
+        toTextStream() {
+          return result.textStream;
+        },
+      };
+    }
+
+    if (agent.outputType) {
+      const result = await generateText({
+        model,
+        system,
+        prompt,
+        output: Output.object({ schema: agent.outputType }),
+        abortSignal: signal,
+      });
+      await notify("onSpanEnd", { agent: agent.name, output: result.output });
+      return { finalOutput: result.output, usage: result.usage };
+    }
+
+    const result = await generateText({ model, system, prompt, abortSignal: signal });
+    await notify("onSpanEnd", { agent: agent.name, output: result.text });
+    return { finalOutput: result.text, usage: result.usage };
+  } catch (error) {
+    await notify("onSpanEnd", { agent: agent.name, error });
+    throw error;
+  }
+}
+
+export { google };

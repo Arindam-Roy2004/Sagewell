@@ -1,6 +1,6 @@
 import "../../shared/libs/env.js";
 import { z } from "zod";
-import { Agent, run } from "@openai/agents";
+import { Agent, run, MODELS } from "../../shared/libs/llm.js";
 import Chat from "../../shared/models/chat.model.js";
 
 // 1. Define Zod schema for structured context compression
@@ -21,7 +21,7 @@ export const ChatSummarySchema = z.object({
 // 2. Define the Agent SDK Chat Context Summarizer Agent
 const chatSummarizerAgent = new Agent({
   name: "chat-context-compressor",
-  model: "gpt-4.1-nano",
+  model: MODELS.light,
   outputType: ChatSummarySchema,
   instructions: `You are an expert conversation context compression engine for an AI research notebook platform.
 Your job is to implement Intelligent Pruning: shrink the conversational message volume by ~80% while ruthlessly preserving the critical 1% of essential facts, user goals, and conclusions needed to answer future chat questions.
