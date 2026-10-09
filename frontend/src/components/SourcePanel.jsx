@@ -292,7 +292,7 @@ export default function SourcePanel({ headerActions }) {
       )}
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto px-2 py-2" onScroll={handleListScroll}>
+      <div className={cn('flex-1 overflow-y-auto px-2 py-2', !isLoading && sources.length === 0 && 'flex flex-col p-3')} onScroll={handleListScroll}>
         <ul className="space-y-0.5">
           {visibleSources.map((source) => {
             const id = source._id || source.id;
@@ -403,17 +403,42 @@ export default function SourcePanel({ headerActions }) {
         )}
 
         {!isLoading && sources.length === 0 && (
-          <div className="flex flex-col items-center px-4 py-14 text-center">
-            <span className="flex size-11 items-center justify-center rounded-xl border border-border bg-muted/50">
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => {
+              handleDrop(e);
+              if (e.dataTransfer.files?.[0]) openAdd('upload');
+            }}
+            className={cn(
+              'flex min-h-[360px] flex-1 flex-col items-center justify-center rounded-lg border border-dashed px-5 py-8 text-center transition-colors',
+              isDragging ? 'border-foreground/40 bg-accent' : 'border-border'
+            )}
+          >
+            <span className="flex size-12 items-center justify-center rounded-xl border border-border bg-background shadow-xs">
               <Library className="size-5 text-muted-foreground" />
             </span>
-            <p className="mt-4 text-sm font-medium text-foreground">No sources yet</p>
-            <p className="mt-1 max-w-[220px] text-xs leading-relaxed text-muted-foreground">
-              Add a PDF, a web page or some notes to start asking questions.
+            <p className="mt-4 text-sm font-semibold text-foreground">Add your first source</p>
+            <p className="mt-1 max-w-[230px] text-xs leading-relaxed text-muted-foreground">
+              Drop a file here, or choose how you'd like to add one.
             </p>
-            <Button size="sm" className="mt-4" onClick={() => openAdd('upload')}>
-              <Plus /> Add source
-            </Button>
+
+            <div className="mt-5 grid w-full max-w-[240px] gap-2">
+              <Button size="sm" onClick={() => document.getElementById('file-upload')?.click()}>
+                <CloudUpload /> Upload a file
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => openAdd('text')}>
+                <NotebookPen /> Paste text
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => openAdd('url')}>
+                <Link2 /> Add a web page
+              </Button>
+            </div>
+
+            <p className="mt-5 text-[11px] text-muted-foreground">PDF, Word, CSV or TXT · up to 50 MB</p>
           </div>
         )}
 

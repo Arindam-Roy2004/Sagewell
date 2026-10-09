@@ -483,7 +483,14 @@ export default function ChatPanel({ headerActions }) {
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} onScroll={handleMessagesScroll} className="flex-1 space-y-7 overflow-y-auto px-4 py-6 md:px-5">
+      <div
+        ref={scrollRef}
+        onScroll={handleMessagesScroll}
+        className={cn(
+          'flex-1 space-y-7 overflow-y-auto px-4 py-6 md:px-5',
+          messages.length === 0 && !isStreaming && !isLoadingMessages && 'flex flex-col justify-center'
+        )}
+      >
         {isLoadingMessages && messages.length === 0 && (
           <div className="space-y-7 animate-fade-in" aria-hidden="true">
             {[0, 1].map((i) => (
@@ -503,7 +510,7 @@ export default function ChatPanel({ headerActions }) {
         )}
 
         {messages.length === 0 && !isStreaming && !isLoadingMessages && (
-          <div className="mx-auto flex max-w-sm animate-fade-in-up flex-col items-center py-10 text-center">
+          <div className="mx-auto flex max-w-sm animate-fade-in-up flex-col items-center pb-10 text-center">
             <span className="flex size-11 items-center justify-center rounded-xl border border-border bg-background text-brand-app shadow-xs">
               <LeafIcon size={20} strokeWidth={2.2} />
             </span>
@@ -515,6 +522,8 @@ export default function ChatPanel({ headerActions }) {
                 ? 'Ask a question about the sources in this dialogue.'
                 : activeSourcesCount > 0
                 ? 'Answers cite the passages they come from. Try one of these to start:'
+                : sources.length === 0
+                ? 'Add a source on the left to start asking questions.'
                 : 'Select one or more sources on the left, then ask a question.'}
             </p>
 

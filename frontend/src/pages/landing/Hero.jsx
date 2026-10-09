@@ -1,7 +1,6 @@
 import { motion } from "motion/react";
 import { Github } from "lucide-react";
 import { Rails, Rule, LpButton } from "./primitives";
-import WorkspaceMock from "./WorkspaceMock";
 import { HERO, REPO_URL } from "./content";
 
 const MotionDiv = motion.div;
@@ -52,7 +51,25 @@ export default function Hero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: [0.25, 0.1, 0.25, 1], delay: 0.35 }}
         >
-          <WorkspaceMock />
+          {/* Real screenshots of the Sagewell workspace (sample notebook), swapped with the theme. */}
+          <div className="overflow-hidden rounded-xl border border-lp-line bg-lp-bg shadow-[0_20px_60px_-20px_rgb(0_0_0/0.18)]">
+            <img
+              src="/images/app-light.webp"
+              alt="The Sagewell workspace: sources on the left, a document summary in the middle, and a dialogue with cited answers on the right"
+              width={2160}
+              height={1290}
+              className="block h-auto w-full dark:hidden"
+              loading="eager"
+            />
+            <img
+              src="/images/app-dark.webp"
+              alt="The Sagewell workspace in dark mode"
+              width={2160}
+              height={1290}
+              className="hidden h-auto w-full dark:block"
+              loading="eager"
+            />
+          </div>
         </MotionDiv>
       </Rails>
       <Rule markers />

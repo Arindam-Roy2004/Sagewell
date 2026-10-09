@@ -1,43 +1,55 @@
-// Sign-in page. Google is the only sign-in method; the same button creates new accounts.
-// Uses the landing page's visual system (railed column, section rules, coral accent).
-import { useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, KeyRound, Lock, Github, Loader2 } from "lucide-react";
+// Sign-in / sign-up page in the landing page's layout: copy and the Google button on the left,
+// a photo card on the right. Google is the only sign-in method; the same button also
+// creates new accounts, so "sign up" only changes the wording.
+import { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion } from "motion/react";
+import { Loader2, ShieldCheck, Quote } from "lucide-react";
 import { useAuthStore } from "../stores/authStore";
 import GoogleSignInButton from "./GoogleSignInButton";
-import ThemeToggle from "./ThemeToggle";
 import LeafIcon from "./icons/leaf-icon";
-import { Rails, Rule, Reveal } from "../pages/landing/primitives";
-import { REPO_URL } from "../pages/landing/content";
+import Navbar from "../pages/landing/Navbar";
+import Footer from "../pages/landing/Footer";
 
+const MotionDiv = motion.div;
 const GOOGLE_CONFIGURED = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
 
-const FACTS = [
-  { icon: KeyRound, title: "No password to remember", text: "Your Google account is your key. Nothing extra to create or reset." },
-  { icon: Lock, title: "Private notebooks", text: "Your sources and dialogues are visible only to your account." },
-  { icon: Github, title: "Open source", text: "See exactly how sign-in and your data are handled on GitHub." },
-];
+// Photo: Thomas Franke on Unsplash (Unsplash License: free to use).
+const PHOTO = {
+  src: "/images/auth-library.webp",
+  alt: "An open book floating above stacks of books in a dimly lit library",
+  credit: "Thomas Franke",
+  creditUrl: "https://unsplash.com/@thomas094?utm_source=sagewell&utm_medium=referral",
+  pageUrl: "https://unsplash.com/photos/view-of-floating-open-book-from-stacked-books-in-library-HH4WBGNyltc?utm_source=sagewell&utm_medium=referral",
+};
 
-function Logo() {
-  const iconRef = useRef(null);
-  return (
-    <Link
-      to="/"
-      className="flex items-center gap-2 text-lp-heading"
-      onMouseEnter={() => iconRef.current?.startAnimation()}
-      onMouseLeave={() => iconRef.current?.stopAnimation()}
-      aria-label="Sagewell home"
-    >
-      <LeafIcon ref={iconRef} size={22} strokeWidth={2.4} className="text-brand" />
-      <span className="font-display text-2xl font-medium tracking-tight">Sagewell</span>
-    </Link>
-  );
-}
+const COPY = {
+  signin: {
+    title: "Welcome back!",
+    subtitle: "Sign in to pick up where you left off. Your sources and dialogues are waiting.",
+    switchText: "Don’t have an account?",
+    switchLabel: "Sign up",
+  },
+  signup: {
+    title: "Create an account",
+    subtitle: "Add your documents, ask questions in plain language, and get answers that cite their sources.",
+    switchText: "Already have an account?",
+    switchLabel: "Sign in",
+  },
+};
+
+const enter = (delay) => ({
+  initial: { opacity: 0, y: 14, filter: "blur(6px)" },
+  animate: { opacity: 1, y: 0, filter: "blur(0px)" },
+  transition: { duration: 0.5, ease: [0.25, 0.1, 0.25, 1], delay },
+});
 
 export default function AuthForm() {
   const { googleLogin, isLoading } = useAuthStore();
   const navigate = useNavigate();
-
+  const [mode, setMode] = useState("signin");
+  const iconRef = useRef(null);
+  const copy = COPY[mode];
 
   const handleGoogle = async (credential) => {
     const result = await googleLogin(credential);
@@ -48,59 +60,42 @@ export default function AuthForm() {
 
   return (
     <div className="flex min-h-screen flex-col overflow-x-clip bg-lp-bg font-landing text-lp-text antialiased selection:bg-brand/25">
-      <header className="w-full border-b border-lp-line">
-        <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-4 px-6 md:px-4">
-          <Logo />
-          <div className="flex items-center gap-3">
-            <Link
-              to="/"
-              className="hidden items-center gap-1.5 text-[15px] text-lp-text transition-colors hover:text-lp-heading sm:flex"
-            >
-              <ArrowLeft className="size-4" /> Back to home
-            </Link>
-            <ThemeToggle className="text-lp-text hover:bg-lp-soft hover:text-lp-heading" />
-          </div>
-        </div>
-      </header>
+      <Navbar basePath="/" />
 
-      <main className="flex-1">
-        <Rails>
-          <div className="flex flex-col items-center px-6 pt-20 pb-16 text-center md:pt-24">
-            <Reveal>
-              <p className="text-sm text-brand">Sign in</p>
-            </Reveal>
-            <Reveal delay={0.05}>
-              <h1 className="mt-3 font-display text-4xl leading-[1.08] font-normal tracking-tight text-lp-heading md:text-5xl">
-                Welcome to Sagewell
+      <main className="flex-1 border-b border-lp-line">
+        <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-16 md:py-20 lg:grid-cols-2 lg:gap-20 lg:px-8">
+          {/* Left: copy + sign-in */}
+          <div className="mx-auto w-full max-w-[528px] lg:mx-0">
+            <MotionDiv {...enter(0)}>
+              <span
+                className="inline-flex text-lp-heading"
+                onMouseEnter={() => iconRef.current?.startAnimation()}
+                onMouseLeave={() => iconRef.current?.stopAnimation()}
+              >
+                <LeafIcon ref={iconRef} size={26} strokeWidth={2.4} className="text-brand" />
+              </span>
+            </MotionDiv>
+
+            <MotionDiv key={`title-${mode}`} {...enter(0.05)}>
+              <h1 className="mt-5 font-display text-4xl font-normal tracking-tight text-black md:text-[40px] dark:text-white">
+                {copy.title}
               </h1>
-            </Reveal>
-            <Reveal delay={0.1}>
-              <p className="mx-auto mt-5 max-w-md text-base leading-relaxed text-lp-text">
-                Continue with your Google account to open your notebooks. New here? The same button creates your
-                account.
-              </p>
-            </Reveal>
-          </div>
-        </Rails>
+              <p className="mt-4 text-base leading-relaxed text-lp-text">{copy.subtitle}</p>
+            </MotionDiv>
 
-        <Rule markers />
-        <Rails className="bg-lp-soft px-6 py-14 md:py-16">
-          <Reveal delay={0.15} className="mx-auto w-full max-w-md">
-            <div className="rounded-xl border border-lp-line bg-lp-bg p-8 shadow-[0_20px_60px_-24px_rgb(0_0_0/0.18)]">
-              <p className="text-center font-dm-mono text-[13px] uppercase tracking-wide text-lp-text">Continue with</p>
+            <MotionDiv {...enter(0.12)} className="mt-9">
+              {GOOGLE_CONFIGURED ? (
+                <div className="w-full">
+                  <GoogleSignInButton onCredential={handleGoogle} lightTheme="filled_black" darkTheme="outline" align="start" />
+                </div>
+              ) : (
+                <p className="rounded-lg border border-lp-line bg-lp-soft px-4 py-3 text-[14px] text-lp-heading">
+                  Google sign-in isn’t configured. Set <code className="font-dm-mono text-[13px]">VITE_GOOGLE_CLIENT_ID</code> in the
+                  frontend environment.
+                </p>
+              )}
 
-              <div className="mt-5 w-full">
-                {GOOGLE_CONFIGURED ? (
-                  <GoogleSignInButton onCredential={handleGoogle} lightTheme="filled_black" darkTheme="outline" />
-                ) : (
-                  <p className="rounded-lg border border-lp-line bg-lp-soft px-4 py-3 text-center text-[14px] text-lp-heading">
-                    Google sign-in isn’t configured. Set <code className="font-dm-mono text-[13px]">VITE_GOOGLE_CLIENT_ID</code> in
-                    the frontend environment.
-                  </p>
-                )}
-              </div>
-
-              <div className="mt-4 flex h-5 items-center justify-center" aria-live="polite">
+              <div className="mt-3 flex h-5 items-center justify-center" aria-live="polite">
                 {isLoading && (
                   <span className="flex items-center gap-2 text-[13px] text-lp-text">
                     <Loader2 className="size-3.5 animate-spin" /> Signing you in…
@@ -108,40 +103,78 @@ export default function AuthForm() {
                 )}
               </div>
 
-              <div className="mt-4 border-t border-lp-line pt-5 text-center text-[13px] leading-relaxed text-lp-text">
-                Sagewell uses your Google name, email and profile picture to set up your account. No password is
-                stored.
+              <div className="mt-4 flex items-center gap-4 text-sm text-lp-text">
+                <span className="h-px flex-1 bg-lp-line" />
+                <span className="flex items-center gap-1.5 text-[13px]">
+                  <ShieldCheck className="size-3.5" /> Secure sign-in with Google
+                </span>
+                <span className="h-px flex-1 bg-lp-line" />
               </div>
-            </div>
-          </Reveal>
-        </Rails>
-        <Rule markers />
 
-        <Rails>
-          <div className="grid md:grid-cols-3">
-            {FACTS.map(({ icon: Icon, title, text }, i) => (
-              <Reveal
-                key={title}
-                delay={i * 0.06}
-                className={`px-8 py-10 ${i < 2 ? "border-b border-lp-line md:border-r md:border-b-0" : ""}`}
-              >
-                <h2 className="flex items-center gap-2.5 font-landing text-[17px] font-normal tracking-normal text-lp-heading">
-                  <Icon className="size-[18px]" /> {title}
-                </h2>
-                <p className="mt-2 text-[15px] leading-relaxed text-lp-text">{text}</p>
-              </Reveal>
-            ))}
+              <p className="mt-5 text-center text-[13px] leading-relaxed text-lp-text">
+                We use your Google name, email and profile picture to set up your account. No password is stored.
+              </p>
+
+              <p className="mt-8 text-center text-[15px] text-lp-text">
+                {copy.switchText}{" "}
+                <button
+                  type="button"
+                  onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+                  className="text-brand underline-offset-4 hover:underline cursor-pointer"
+                >
+                  {copy.switchLabel}
+                </button>
+              </p>
+            </MotionDiv>
           </div>
-        </Rails>
-        <Rule />
+
+          {/* Right: photo card */}
+          <MotionDiv
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.15 }}
+            className="hidden lg:block"
+          >
+            <figure>
+              <div className="relative aspect-[528/607] w-full overflow-hidden rounded-2xl bg-neutral-900 shadow-[0_24px_60px_-24px_rgb(0_0_0/0.35)]">
+                <img src={PHOTO.src} alt={PHOTO.alt} className="absolute inset-0 size-full object-cover" loading="eager" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" aria-hidden="true" />
+
+                <div className="absolute right-8 bottom-8 left-8">
+                  <div className="flex flex-wrap gap-2">
+                    {["Research", "Citations"].map((tag) => (
+                      <span key={tag} className="rounded-[5px] bg-black/55 px-2 py-1 text-[12px] text-white backdrop-blur-sm">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-3 max-w-sm rounded-xl border border-white/10 bg-black/45 p-4 text-white backdrop-blur-md">
+                    <Quote className="size-4 text-white/60" />
+                    <p className="mt-2 text-[16px] leading-relaxed">
+                      Every answer points back to the passage it came from, so you can always check the source.
+                    </p>
+                    <p className="mt-3 text-[13px] text-white/60">
+                      Sagewell, <span className="font-medium text-white/80">grounded answers</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <figcaption className="mt-2 text-right text-[12px] text-lp-text">
+                Photo by{" "}
+                <a href={PHOTO.creditUrl} target="_blank" rel="noopener noreferrer" className="underline-offset-2 hover:underline">
+                  {PHOTO.credit}
+                </a>{" "}
+                on{" "}
+                <a href={PHOTO.pageUrl} target="_blank" rel="noopener noreferrer" className="underline-offset-2 hover:underline">
+                  Unsplash
+                </a>
+              </figcaption>
+            </figure>
+          </MotionDiv>
+        </div>
       </main>
 
-      <footer className="mx-auto flex w-full max-w-7xl flex-col items-center justify-between gap-3 px-6 py-8 text-[14px] text-lp-link sm:flex-row md:px-4">
-        <p>© {new Date().getFullYear()} Sagewell. Open source.</p>
-        <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-lp-heading">
-          GitHub
-        </a>
-      </footer>
+      <Footer basePath="/" />
     </div>
   );
 }

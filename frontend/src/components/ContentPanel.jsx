@@ -67,7 +67,7 @@ function Placeholder({ icon: Icon, title, text, children, tone = "muted" }) {
 }
 
 export default function ContentPanel({ headerActions }) {
-  const { selectedSource, getViewUrl, citationJump, deleteSource } = useSourceStore();
+  const { sources, selectedSource, getViewUrl, citationJump, deleteSource } = useSourceStore();
   const [isLoadingViewUrl, setIsLoadingViewUrl] = useState(false);
   const [activeTab, setActiveTab] = useState('summary');
   const [showTutorial, setShowTutorial] = useState(false);
@@ -188,6 +188,12 @@ export default function ContentPanel({ headerActions }) {
 
   // ── Summary tab ─────────────────────────────────────────────────────────────
   const renderSummary = () => {
+    // Sources exist but none is open: a short prompt instead of repeating the onboarding.
+    if (!selectedSource && sources.length > 0) {
+      return (
+        <Placeholder icon={BookOpenText} title="Pick a source to read" text="Choose a source on the left to see its summary, or open the document." />
+      );
+    }
     if (!selectedSource) {
       return (
         <div className="flex flex-1 items-center justify-center overflow-y-auto px-6 py-10">

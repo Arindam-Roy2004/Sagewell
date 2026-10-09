@@ -5,7 +5,7 @@ import LeafIcon from "@/components/icons/leaf-icon";
 import { LpButton } from "./primitives";
 import { FOOTER, REPO_URL } from "./content";
 
-function FooterLink({ link }) {
+function FooterLink({ link, basePath = "" }) {
   const className = "text-[15px] text-lp-link transition-colors hover:text-lp-heading";
   if (link.to) {
     return (
@@ -15,14 +15,16 @@ function FooterLink({ link }) {
     );
   }
   const external = /^https?:/.test(link.href);
+  const href = link.href.startsWith("#") ? `${basePath}${link.href}` : link.href;
   return (
-    <a href={link.href} className={className} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
+    <a href={href} className={className} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
       {link.label}
     </a>
   );
 }
 
-export default function Footer() {
+/** basePath: "/" when used outside the landing page, so section links point back to it. */
+export default function Footer({ basePath = "" }) {
   const iconRef = useRef(null);
   const year = new Date().getFullYear();
 
@@ -50,7 +52,7 @@ export default function Footer() {
               <ul className="mt-5 space-y-5">
                 {column.links.map((link) => (
                   <li key={link.label}>
-                    <FooterLink link={link} />
+                    <FooterLink link={link} basePath={basePath} />
                   </li>
                 ))}
               </ul>

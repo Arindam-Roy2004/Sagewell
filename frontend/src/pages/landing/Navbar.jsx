@@ -9,11 +9,11 @@ import { NAV_LINKS } from "./content";
 
 const MotionDiv = motion.div;
 
-function Logo() {
+function Logo({ basePath = "" }) {
   const iconRef = useRef(null);
   return (
     <a
-      href="#top"
+      href={basePath ? basePath : "#top"}
       className="flex items-center gap-2 text-lp-heading"
       onMouseEnter={() => iconRef.current?.startAnimation()}
       onMouseLeave={() => iconRef.current?.stopAnimation()}
@@ -25,13 +25,13 @@ function Logo() {
   );
 }
 
-function Links({ className, onNavigate }) {
+function Links({ className, onNavigate, basePath = "" }) {
   return (
     <nav className={className}>
       {NAV_LINKS.map((link) => (
         <a
           key={link.href}
-          href={link.href}
+          href={`${basePath}${link.href}`}
           onClick={onNavigate}
           className="text-[15px] text-lp-text transition-colors hover:text-lp-heading"
         >
@@ -42,11 +42,11 @@ function Links({ className, onNavigate }) {
   );
 }
 
-function BarContent({ onMenu, menuOpen }) {
+function BarContent({ onMenu, menuOpen, basePath }) {
   return (
     <div className="flex h-[72px] items-center justify-between gap-6 px-6 md:px-4">
-      <Logo />
-      <Links className="hidden items-center gap-10 md:flex" />
+      <Logo basePath={basePath} />
+      <Links className="hidden items-center gap-10 md:flex" basePath={basePath} />
       <div className="flex items-center gap-3">
         <ThemeToggle className="text-lp-text hover:bg-lp-soft hover:text-lp-heading" />
         <LpButton to="/auth" className="hidden sm:inline-flex">
@@ -70,7 +70,8 @@ function BarContent({ onMenu, menuOpen }) {
  * Resting navbar with a full-width bottom rule. After 40px of scroll a floating, blurred
  * pill version slides in from the top (the resting bar becomes inert meanwhile).
  */
-export default function Navbar() {
+/** basePath: "/" when used outside the landing page, so section links point back to it. */
+export default function Navbar({ basePath = "" }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -88,7 +89,7 @@ export default function Navbar() {
     <>
       <header className="w-full border-b border-lp-line bg-lp-bg" inert={scrolled ? true : undefined}>
         <div className="mx-auto max-w-7xl">
-          <BarContent onMenu={toggleMenu} menuOpen={menuOpen} />
+          <BarContent onMenu={toggleMenu} menuOpen={menuOpen} basePath={basePath} />
         </div>
       </header>
 
@@ -103,7 +104,7 @@ export default function Navbar() {
             className="fixed inset-x-0 top-0 z-50 xl:top-3"
           >
             <div className="mx-auto max-w-[calc(80rem-4rem)] border-b border-lp-line bg-lp-bg/80 shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08)] backdrop-blur-md xl:rounded-2xl xl:border">
-              <BarContent onMenu={toggleMenu} menuOpen={menuOpen} />
+              <BarContent onMenu={toggleMenu} menuOpen={menuOpen} basePath={basePath} />
             </div>
           </MotionDiv>
         )}
@@ -121,7 +122,7 @@ export default function Navbar() {
               "fixed inset-x-4 top-[80px] z-50 rounded-2xl border border-lp-line bg-lp-bg/95 p-5 shadow-lg backdrop-blur-md md:hidden"
             )}
           >
-            <Links className="flex flex-col gap-4" onNavigate={closeMenu} />
+            <Links className="flex flex-col gap-4" onNavigate={closeMenu} basePath={basePath} />
             <LpButton to="/auth" className="mt-5 w-full" onClick={closeMenu}>
               Get started
             </LpButton>

@@ -29,7 +29,7 @@ function loadGsi() {
  * onCredential receives the signed Google ID token, which the backend verifies.
  * Renders nothing if VITE_GOOGLE_CLIENT_ID is not set.
  */
-export default function GoogleSignInButton({ onCredential, lightTheme = "outline", darkTheme = "filled_black" }) {
+export default function GoogleSignInButton({ onCredential, lightTheme = "outline", darkTheme = "filled_black", align = "center" }) {
   const containerRef = useRef(null);
   const { theme } = useThemeStore();
   // Keep the latest callback without re-initialising Google on every render.
@@ -65,5 +65,10 @@ export default function GoogleSignInButton({ onCredential, lightTheme = "outline
   }, [theme, lightTheme, darkTheme]);
 
   if (!CLIENT_ID) return null;
-  return <div ref={containerRef} className="w-full flex justify-center min-h-[44px]" />;
+  return (
+    <div
+      ref={containerRef}
+      className={`w-full flex min-h-[44px] ${align === "start" ? "justify-start" : "justify-center"}`}
+    />
+  );
 }
