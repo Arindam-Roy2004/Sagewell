@@ -4,6 +4,7 @@ import Chunk from "../../shared/models/chunk.model.js";
 import Chat from "../../shared/models/chat.model.js";
 import { s3 } from "../../shared/libs/s3.js";
 import { deleteSourceVectors } from "../../shared/libs/qdrant.js";
+import { refundSource } from "../../shared/libs/credits.js";
 
 /**
  * Background cascade for deleting a source.
@@ -19,6 +20,9 @@ import { deleteSourceVectors } from "../../shared/libs/qdrant.js";
  */
 export async function processSourceDeletion(job) {
   const { sourceId, userId, s3Key } = job.data;
+
+  // 0. A source deleted before processing settled returns its credit hold (no-op otherwise).
+  await refundSource(sourceId, "Source deleted, credits returned");
 
   // 1. Remove from all chats, then delete chats left with no sources.
   await Chat.updateMany(
