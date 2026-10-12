@@ -28,9 +28,6 @@ import {
   ScreenCogIcon,
 } from "./icons";
 
-export const REPO_URL = "https://github.com/Arindam-Roy2004/Sagewell";
-export const ISSUES_URL = `${REPO_URL}/issues`;
-
 export const NAV_LINKS = [
   { label: "How it works", href: "#how-it-works" },
   { label: "Features", href: "#features" },
@@ -43,7 +40,6 @@ export const HERO = {
   titleMid: "anything, with ",
   titleAccent: "citations",
   subtitle: "Add PDFs, notes or web pages, then ask questions. Every answer shows where it came from.",
-  openSource: "Open source",
 };
 
 // Marks that rotate through the "works with" grid (8 are on screen at a time).
@@ -162,13 +158,6 @@ export const FOOTER = {
         { label: "Features", href: "#features" },
         { label: "Use cases", href: "#use-cases" },
         { label: "FAQ", href: "#faq" },
-      ],
-    },
-    {
-      title: "Project",
-      links: [
-        { label: "GitHub", href: REPO_URL },
-        { label: "Report an issue", href: ISSUES_URL },
       ],
     },
     {

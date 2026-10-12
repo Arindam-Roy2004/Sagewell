@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, LogOut, LayoutDashboard, ChevronRight, Command, Github } from 'lucide-react';
+import { Search, LogOut, LayoutDashboard, ChevronRight, Command } from 'lucide-react';
 import { Avatar, Kbd } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -16,7 +16,6 @@ import LeafIcon from './icons/leaf-icon';
 
 // Optional: same email as ADMIN_EMAIL in backend/.env. Users with role "admin" always qualify.
 const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || '';
-const REPO_URL = 'https://github.com/Arindam-Roy2004/Sagewell';
 
 export default function Header({ onOpenPalette }) {
   const navigate = useNavigate();
@@ -101,9 +100,6 @@ export default function Header({ onOpenPalette }) {
                 <LayoutDashboard /> Admin dashboard
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem onSelect={() => window.open(REPO_URL, '_blank', 'noopener')}>
-              <Github /> GitHub
-            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={logout}>
               <LogOut /> Sign out

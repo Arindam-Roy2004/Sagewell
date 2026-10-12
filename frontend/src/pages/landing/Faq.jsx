@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useLayoutEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Container, DivideX, Badge, SectionHeading, SubHeading, Button } from "./primitives";
-import { FAQ, REPO_URL } from "./content";
+import { FAQ } from "./content";
 
 const MotionDiv = motion.div;
 const MotionSpan = motion.span;
@@ -102,9 +102,6 @@ export default function Faq() {
         <div className="mt-8 mb-12 flex w-full flex-col justify-center gap-4 px-4 sm:flex-row">
           <Button to="/auth" className="w-full sm:w-auto">
             Start a notebook
-          </Button>
-          <Button variant="secondary" href={`${REPO_URL}/issues`} className="w-full sm:w-auto">
-            Ask on GitHub
           </Button>
         </div>
         <DivideX />

@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "motion/react";
 import { FileText, FileType2, Globe, StickyNote } from "lucide-react";
 import { Container, DivideX, Dot, Badge, SubHeading, Button } from "./primitives";
-import { HERO, REPO_URL } from "./content";
+import { HERO } from "./content";
 
 const MotionDiv = motion.div;
 
@@ -32,14 +32,6 @@ function HeroText() {
             </MotionDiv>
           ))}
         </div>
-        <a
-          href={REPO_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="border-l border-gray-500 pl-4 text-[10px] text-gray-600 transition-colors hover:text-black sm:text-sm dark:text-gray-300 dark:hover:text-white"
-        >
-          {HERO.openSource}
-        </a>
       </div>
     </Container>
   );
