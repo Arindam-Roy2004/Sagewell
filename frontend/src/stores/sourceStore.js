@@ -3,6 +3,7 @@ import { axiosInstance } from '../lib/axios';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { useChatStore } from './chatStore';
+import { useCreditStore, handleCreditError } from './creditStore';
 
 // One shared poller for ALL in-progress sources (instead of one setTimeout loop per
 // source that each refetched the whole list). `active` guards against starting two
@@ -122,6 +123,7 @@ export const useSourceStore = create((set, get) => ({
       }));
       
       toast.success("Text source queued for processing");
+      useCreditStore.getState().fetchCredits();
       
       // Start polling for completion
       get().pollSourceStatus(newSource._id);
@@ -129,6 +131,9 @@ export const useSourceStore = create((set, get) => ({
       return { success: true, source: newSource };
     } catch (error) {
       console.error("Add text source error:", error);
+      if (handleCreditError(error.response?.status, error.response?.data)) {
+        return { success: false, error: error.response.data.message };
+      }
       const message = error.response?.data?.message || "Failed to add text source";
       toast.error(message);
       return { success: false, error: message };
@@ -138,6 +143,7 @@ export const useSourceStore = create((set, get) => ({
   },
 
   addFileSource: async (file) => {
+    let pendingId = null;
     try {
       set({ isUploading: true });
 
@@ -162,6 +168,7 @@ export const useSourceStore = create((set, get) => ({
         ...rawSource,
         _id: rawSource._id || rawSource.id,
       };
+      pendingId = source._id;
 
       // Add source to list immediately (status: 'uploading')
       set(state => ({
@@ -193,6 +200,7 @@ export const useSourceStore = create((set, get) => ({
       }));
 
       toast.success("File uploaded! Processing started.");
+      useCreditStore.getState().fetchCredits();
 
       // Step 4: Start polling for completion
       get().pollSourceStatus(source._id);
@@ -200,6 +208,16 @@ export const useSourceStore = create((set, get) => ({
       return { success: true, source };
     } catch (error) {
       console.error("Add file source error:", error);
+      // The upload never got queued (for example no credits at confirm time): drop its placeholder.
+      if (pendingId) {
+        set((state) => ({
+          sources: state.sources.filter((s) => s._id !== pendingId),
+          selectedSource: state.selectedSource?._id === pendingId ? null : state.selectedSource,
+        }));
+      }
+      if (handleCreditError(error.response?.status, error.response?.data)) {
+        return { success: false, error: error.response.data.message };
+      }
       const message = error.response?.data?.message || "Failed to upload file";
       toast.error(message);
       return { success: false, error: message };
@@ -225,6 +243,7 @@ export const useSourceStore = create((set, get) => ({
       }));
       
       toast.success("URL source queued for processing");
+      useCreditStore.getState().fetchCredits();
       
       // Start polling for completion
       get().pollSourceStatus(newSource._id);
@@ -232,6 +251,9 @@ export const useSourceStore = create((set, get) => ({
       return { success: true, source: newSource };
     } catch (error) {
       console.error("Add URL source error:", error);
+      if (handleCreditError(error.response?.status, error.response?.data)) {
+        return { success: false, error: error.response.data.message };
+      }
       const message = error.response?.data?.message || "Failed to add URL source";
       toast.error(message);
       return { success: false, error: message };
@@ -292,6 +314,9 @@ export const useSourceStore = create((set, get) => ({
           const prev = prevById.get(f._id);
           if (!prev || prev.status !== f.status) {
             changed = true;
+            if (f.status === 'completed' || f.status === 'failed') {
+              useCreditStore.getState().refreshSoon(800);
+            }
             if (f.status === 'completed') {
               toast.success(`"${f.title || f.originalFileName || 'Source'}" is ready`);
             } else if (f.status === 'failed') {
