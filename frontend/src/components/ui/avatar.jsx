@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { cn } from "@/lib/utils"
+import { avatarGradient } from "@/lib/avatar-gradient"
 
 /** Round avatar: the image when it loads, otherwise the person's initials. */
 export function Avatar({ src, name = "", className }) {
@@ -12,14 +13,18 @@ export function Avatar({ src, name = "", className }) {
       .map((part) => part[0]?.toUpperCase() || "")
       .join("") || "?"
 
+  const showImage = Boolean(src) && !failed
+
   return (
     <span
+      style={showImage ? undefined : { backgroundImage: avatarGradient(name) }}
       className={cn(
-        "relative inline-flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-medium text-foreground",
+        "relative inline-flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold",
+        showImage ? "text-foreground" : "text-white",
         className
       )}
     >
-      {src && !failed ? (
+      {showImage ? (
         <img src={src} alt="" referrerPolicy="no-referrer" className="size-full object-cover" onError={() => setFailed(true)} />
       ) : (
         initials
