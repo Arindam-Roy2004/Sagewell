@@ -10,6 +10,9 @@ import { processWeb } from "./webProcessor.js";
 import crypto from "crypto";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import Chunk from "../../shared/models/chunk.model.js";
+import { usageStore, createMeter } from "../../shared/libs/usageMeter.js";
+import { topUpSource, settleSource, refundSource } from "../../shared/libs/credits.js";
+import { ingestCostMicros, LIMITS, PRICING, toMicros } from "../../shared/libs/pricing.js";
 
 let vectorStoreInstance = null;
 async function getVectorStore() {
@@ -69,7 +72,14 @@ Analyze the provided document macro-sections (which span the introduction, core 
 });
 
 
+// Runs the job inside a usage meter so embeddings and the summary call are charged to the
+// owner. The API already holds credits for the source; this settles to the real cost.
 export async function processSource(job) {
+  const meter = createMeter({ userId: job.data.userId, kind: "source" });
+  return usageStore.run(meter, () => ingestSource(job, meter));
+}
+
+async function ingestSource(job, meter) {
   const { sourceId, userId, type, s3Key, typeSpecificData, mimeType } =
     job.data;
 
@@ -101,6 +111,16 @@ export async function processSource(job) {
 
     if (!docs || docs.length === 0) {
       throw new Error("No readable text content extracted from source");
+    }
+
+    // Now the real size is known: refuse oversized documents and make sure the owner can
+    // afford this one before any embedding money is spent.
+    const totalChars = docs.reduce((sum, d) => sum + (d.pageContent?.length || 0), 0);
+    if (totalChars > LIMITS.maxSourceChars) {
+      throw new Error(`This document is too large (the limit is ${LIMITS.maxSourceChars.toLocaleString()} characters of text).`);
+    }
+    if (!(await topUpSource(sourceId, userId, ingestCostMicros(totalChars, { link: type === "link" })))) {
+      throw new Error("Not enough credits to process this document.");
     }
 
     const parentDocs = await parentSplitter.splitDocuments(docs);
@@ -220,7 +240,13 @@ export async function processSource(job) {
       totalPages: maxPages,
     });
 
+    const flatFee = type === "link" ? toMicros(PRICING.linkFlat) : 0;
+    // The source is already usable; a billing hiccup here must not fail it.
+    await settleSource(sourceId, meter.micros + flatFee, `Added "${title || source.originalFileName || "source"}"`).catch(
+      (e) => console.error("Failed to settle source credits:", e.message),
+    );
   } catch (error) {
+    await refundSource(sourceId).catch((e) => console.error("Refund failed:", e.message));
     await Source.findByIdAndUpdate(sourceId, {
       status: "failed",
       errorMessage: error.message.substring(0, 500),
