@@ -26,6 +26,7 @@ import {
   GitCompareArrows,
   ArrowRight,
   ArrowDown,
+  ZapOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +44,7 @@ import { cn } from '@/lib/utils';
 import LeafIcon from './icons/leaf-icon';
 import { useChatStore } from '../stores/chatStore';
 import { useSourceStore } from '../stores/sourceStore';
+import { useCreditStore } from '../stores/creditStore';
 import MessageContent from './MessageContent';
 import Citations from './Citations';
 
@@ -270,7 +272,9 @@ export default function ChatPanel({ headerActions }) {
 
   const activeSourcesCount = selectedSourceIds.length;
   const currentChatTitle = activeChat?.title || (activeChatId ? 'Current dialogue' : 'New dialogue');
-  const composerDisabled = isStreaming || activeSourcesCount === 0 || isReadOnly;
+  const creditsExhausted = useCreditStore((s) => Boolean(s.credits?.exhausted));
+  const openCredits = useCreditStore((s) => s.setDialogOpen);
+  const composerDisabled = isStreaming || activeSourcesCount === 0 || isReadOnly || creditsExhausted;
 
   return (
     <div className="relative flex h-full flex-col bg-background">
@@ -635,6 +639,16 @@ export default function ChatPanel({ headerActions }) {
           </div>
         )}
 
+        {creditsExhausted && !isReadOnly && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-muted-foreground">
+            <ZapOff className="size-3.5 shrink-0 text-destructive" />
+            <span className="flex-1">You&apos;re out of credits, so new questions are paused.</span>
+            <button type="button" onClick={() => openCredits(true)} className="shrink-0 font-medium text-foreground hover:underline underline-offset-4 cursor-pointer">
+              View credits
+            </button>
+          </div>
+        )}
+
         <div
           className={cn(
             'rounded-xl border border-input bg-background shadow-xs transition-[box-shadow,border-color] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/30 dark:bg-input/20',
@@ -647,6 +661,8 @@ export default function ChatPanel({ headerActions }) {
             placeholder={
               isReadOnly
                 ? 'This dialogue is read-only'
+                : creditsExhausted
+                ? 'Out of credits'
                 : activeSourcesCount === 0
                 ? 'Select sources to start asking…'
                 : 'Ask a question about your sources…'
@@ -684,7 +700,7 @@ export default function ChatPanel({ headerActions }) {
               <Button
                 type="button"
                 onClick={handleSendMessage}
-                disabled={!inputMessage.trim() || activeSourcesCount === 0 || isReadOnly}
+                disabled={!inputMessage.trim() || activeSourcesCount === 0 || isReadOnly || creditsExhausted}
                 size="icon-sm"
                 className="rounded-full"
                 aria-label="Send message"
