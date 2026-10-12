@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { axiosInstance, BASE_URL } from '../lib/axios';
 import { useSourceStore } from './sourceStore';
 import { toast } from 'sonner';
+import { useCreditStore, handleCreditError } from './creditStore';
 
 /**
  * Robust Server-Sent Events (SSE) stream reader helper.
@@ -267,7 +268,10 @@ export const useChatStore = create((set, get) => ({
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.message || `Request failed with status ${res.status}`);
+        const err = new Error(errJson.message || `Request failed with status ${res.status}`);
+        // Out of credits: the exhausted dialog explains it, so skip the generic error toast.
+        err.handled = handleCreditError(res.status, errJson);
+        throw err;
       }
 
       let accumulatedText = '';
@@ -298,6 +302,7 @@ export const useChatStore = create((set, get) => ({
           scheduleTokenUpdate();
         },
         onDone: (data) => {
+          useCreditStore.getState().refreshSoon();
           if (rafId) {
             cancelAnimationFrame(rafId);
             rafId = null;
@@ -325,6 +330,7 @@ export const useChatStore = create((set, get) => ({
           get().touchActiveChat();
         },
         onStopped: () => {
+          useCreditStore.getState().refreshSoon();
           if (rafId) {
             cancelAnimationFrame(rafId);
             rafId = null;
@@ -347,7 +353,8 @@ export const useChatStore = create((set, get) => ({
       }
 
       console.error('Streaming error:', error);
-      toast.error(error.message || 'Error occurred while streaming response');
+      useCreditStore.getState().refreshSoon();
+      if (!error.handled) toast.error(error.message || 'Error occurred while streaming response');
 
       // If streaming failed without any content, remove the optimistic user message
       if (!get().streamingContent) {
@@ -389,6 +396,7 @@ export const useChatStore = create((set, get) => ({
     }
 
     set({ isStreaming: false, abortController: null });
+    useCreditStore.getState().refreshSoon();
 
     if (!activeChatId) return;
 
@@ -478,7 +486,9 @@ export const useChatStore = create((set, get) => ({
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.message || `Regenerate failed with status ${res.status}`);
+        const err = new Error(errJson.message || `Regenerate failed with status ${res.status}`);
+        err.handled = handleCreditError(res.status, errJson);
+        throw err;
       }
 
       let accumulatedText = '';
@@ -509,6 +519,7 @@ export const useChatStore = create((set, get) => ({
           scheduleRegenerateUpdate();
         },
         onDone: (data) => {
+          useCreditStore.getState().refreshSoon();
           if (rafId) {
             cancelAnimationFrame(rafId);
             rafId = null;
@@ -535,6 +546,7 @@ export const useChatStore = create((set, get) => ({
           get().touchActiveChat();
         },
         onStopped: () => {
+          useCreditStore.getState().refreshSoon();
           if (rafId) {
             cancelAnimationFrame(rafId);
             rafId = null;
@@ -552,7 +564,8 @@ export const useChatStore = create((set, get) => ({
     } catch (error) {
       if (error.name === 'AbortError') return;
       console.error('Regenerate error:', error);
-      toast.error(error.message || 'Failed to regenerate response');
+      useCreditStore.getState().refreshSoon();
+      if (!error.handled) toast.error(error.message || 'Failed to regenerate response');
       set({
         isStreaming: false,
         streamingContent: '',
