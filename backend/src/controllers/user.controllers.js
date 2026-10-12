@@ -2,6 +2,9 @@ import User from "../../shared/models/user.model.js";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import { OAuth2Client } from "google-auth-library";
+import { creditSummary } from "../../shared/libs/credits.js";
+import { recordSignIn } from "../../shared/libs/activity.js";
+import { userIsAdmin } from "../middlewares/auth.middlewares.js";
 
 dotenv.config();
 
@@ -69,6 +72,7 @@ export const googleLogin = async (req, res) => {
 
     const email = payload.email.trim().toLowerCase();
     let user = await User.findOne({ email });
+    const isNewUser = !user;
 
     if (!user) {
       user = await User.create({
@@ -87,12 +91,13 @@ export const googleLogin = async (req, res) => {
     }
 
     const token = issueSession(res, user._id);
+    await recordSignIn(req, user, { isNewUser });
 
     return res.status(200).json({
       success: true,
       message: "Login successfully",
       token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      user: { id: user._id, name: user.name, email: user.email, role: user.role, credits: creditSummary(user), isAdmin: userIsAdmin(user) },
     });
   } catch (error) {
     console.error(error);
@@ -112,9 +117,11 @@ export const getMe = async (req, res) => {
       });
     }
 
+    // Raw credit fields are micro-USD internals; the client gets the credit summary instead.
+    const { credits: _credits, usage: _usage, ...user } = req.user.toObject();
     return res.status(200).json({
       success: true,
-      user: req.user,
+      user: { ...user, credits: creditSummary(req.user), isAdmin: userIsAdmin(req.user) },
     });
   } catch (error) {
     console.log(error);
