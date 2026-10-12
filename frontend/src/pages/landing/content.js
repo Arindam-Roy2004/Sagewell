@@ -136,7 +136,7 @@ export const FAQ = {
     { q: "What can I add?", a: "PDF, Word, CSV and text files, pasted notes and web pages." },
     { q: "How do citations work?", a: "Each answer is numbered against the passages it used. Click a number to open the source at that spot." },
     { q: "Is my data private?", a: "Yes. Each account only sees its own sources, and files are kept in private storage." },
-    { q: "Is there a file size limit?", a: "Files can be up to 50 MB each." },
+    { q: "Is there a file size limit?", a: "Files can be up to 20 MB each." },
   ],
 };
 
