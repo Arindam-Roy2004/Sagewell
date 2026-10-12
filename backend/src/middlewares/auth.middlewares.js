@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import User from "../../shared/models/user.model.js";
 import "../../shared/libs/env.js";
+import { touchActivity } from "../../shared/libs/activity.js";
 
 export const isLoggedIn = async (req, res, next) => {
   try {
@@ -42,6 +43,7 @@ export const isLoggedIn = async (req, res, next) => {
     }
 
     req.user = user;
+    touchActivity(user._id);
 
     next();
   } catch (error) {
@@ -62,12 +64,12 @@ export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "";
  * Middleware restricting access to admins.
  * A user is admin if their `role` is "admin" OR their email matches ADMIN_EMAIL.
  */
-export const isAdmin = (req, res, next) => {
-  const isRoleAdmin = req.user?.role === "admin";
-  const isEmailAdmin =
-    ADMIN_EMAIL && req.user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+export const userIsAdmin = (user) =>
+  Boolean(user) &&
+  (user.role === "admin" || Boolean(ADMIN_EMAIL && user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()));
 
-  if (!req.user || (!isRoleAdmin && !isEmailAdmin)) {
+export const isAdmin = (req, res, next) => {
+  if (!userIsAdmin(req.user)) {
     return res.status(403).json({
       success: false,
       message: "Forbidden: admin access required",
