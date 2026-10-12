@@ -1,6 +1,8 @@
 import "./env.js";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText, streamText, Output } from "ai";
+import { recordLlmUsage } from "./usageMeter.js";
+import { estimateTokens } from "./pricing.js";
 
 /**
  * Gemini agent runner, built on the AI SDK's Google provider.
@@ -17,8 +19,8 @@ import { generateText, streamText, Output } from "ai";
 const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export const MODELS = {
-  main: process.env.GEMINI_MODEL_MAIN || "gemini-3.8-flash",
-  light: process.env.GEMINI_MODEL_LIGHT || "gemini-3.5-flash-lite",
+  main: process.env.GEMINI_MODEL_MAIN || "gemini-3.1-flash-lite",
+  light: process.env.GEMINI_MODEL_LIGHT || "gemini-3.1-flash-lite",
 };
 
 /** Accepts a tier name ("main" / "light") or a full Gemini model id. */
@@ -48,6 +50,38 @@ async function notify(hook, payload) {
   }
 }
 
+// Reports one finished model call to the active credit meter (see usageMeter.js).
+// `outputTokens` already includes thinking tokens, which Gemini bills as output.
+function meterUsage(model, usage) {
+  const inputTokens = usage?.inputTokens ?? 0;
+  const outputTokens = usage?.outputTokens ?? Math.max(0, (usage?.totalTokens ?? 0) - inputTokens);
+  recordLlmUsage({ model, inputTokens, outputTokens });
+}
+
+// Wraps a text stream so its usage is metered exactly once, even if the client aborts: the
+// provider's own count when it arrives, otherwise an estimate from the characters seen.
+async function* meteredTextStream(result, { model, promptChars, state }) {
+  let outChars = 0;
+  try {
+    for await (const chunk of result.textStream) {
+      outChars += chunk.length;
+      yield chunk;
+    }
+  } finally {
+    if (!state.recorded) {
+      const usage = await Promise.race([
+        Promise.resolve(result.totalUsage ?? result.usage).catch(() => null),
+        new Promise((resolve) => setTimeout(resolve, 1500, null)),
+      ]);
+      if (!state.recorded) {
+        state.recorded = true;
+        if (usage) meterUsage(model, usage);
+        else recordLlmUsage({ model, inputTokens: estimateTokens(promptChars), outputTokens: estimateTokens(outChars) });
+      }
+    }
+  }
+}
+
 export class Agent {
   constructor({ name, model, instructions, outputType } = {}) {
     this.name = name || "gemini-agent";
@@ -67,11 +101,17 @@ export async function run(agent, prompt, options = {}) {
 
   try {
     if (options.stream) {
+      const state = { recorded: false };
       const result = streamText({
         model,
         system,
         prompt,
         abortSignal: signal,
+        onEnd: (event) => {
+          if (state.recorded) return;
+          state.recorded = true;
+          meterUsage(modelName, event?.totalUsage ?? event?.usage);
+        },
         // streamText reports failures here instead of throwing; log them so a broken
         // stream is visible in the API logs (the caller sees the stream end early).
         onError: ({ error }) => {
@@ -81,9 +121,15 @@ export async function run(agent, prompt, options = {}) {
       });
       return {
         stream: result,
-        textStream: result.textStream,
+        get textStream() {
+          return this.toTextStream();
+        },
         toTextStream() {
-          return result.textStream;
+          return meteredTextStream(result, {
+            model: modelName,
+            promptChars: (system?.length || 0) + prompt.length,
+            state,
+          });
         },
       };
     }
@@ -96,11 +142,13 @@ export async function run(agent, prompt, options = {}) {
         output: Output.object({ schema: agent.outputType }),
         abortSignal: signal,
       });
+      meterUsage(modelName, result.usage);
       await notify("onSpanEnd", { agent: agent.name, output: result.output });
       return { finalOutput: result.output, usage: result.usage };
     }
 
     const result = await generateText({ model, system, prompt, abortSignal: signal });
+    meterUsage(modelName, result.usage);
     await notify("onSpanEnd", { agent: agent.name, output: result.text });
     return { finalOutput: result.text, usage: result.usage };
   } catch (error) {
