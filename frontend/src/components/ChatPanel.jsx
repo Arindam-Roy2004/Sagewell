@@ -596,7 +596,7 @@ export default function ChatPanel({ headerActions }) {
             <div className="min-w-0 flex-1 space-y-2">
               {streamingContent ? (
                 <div>
-                  <MessageContent content={streamingContent} />
+                  <MessageContent content={streamingContent} isStreaming />
                   <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-foreground/70 align-middle" />
                 </div>
               ) : (
