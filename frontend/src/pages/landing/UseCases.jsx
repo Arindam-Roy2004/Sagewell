@@ -35,7 +35,7 @@ export default function UseCases() {
                     <Scale />
                   </MotionDiv>
                 )}
-                <div className="relative z-10 rounded-lg bg-gray-50 p-4 transition duration-200 hover:bg-transparent md:p-5 dark:bg-neutral-800">
+                <div className="relative z-10 rounded-lg bg-gray-50 p-4 transition duration-200 hover:bg-transparent md:p-5 dark:bg-neutral-800 dark:hover:bg-transparent">
                   <div className="flex items-center gap-2">
                     <Icon className="text-brand size-6" strokeWidth={1.5} />
                   </div>

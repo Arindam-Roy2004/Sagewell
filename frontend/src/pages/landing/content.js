@@ -20,7 +20,6 @@ import {
 import {
   FingerprintIcon,
   RealtimeSyncIcon,
-  SdkIcon,
   RocketIcon,
   GraphIcon,
   ReuseBrainIcon,
@@ -86,7 +85,6 @@ export const FEATURES = {
   extras: [
     { icon: FingerprintIcon, title: "Private to you", text: "Documents belong to your account and are kept in private storage." },
     { icon: RealtimeSyncIcon, title: "Streams as it answers", text: "Answers appear as they are written, and follow-up questions keep the context." },
-    { icon: SdkIcon, title: "Open source", text: "Read the code, run it yourself and change what you need." },
   ],
 };
 
