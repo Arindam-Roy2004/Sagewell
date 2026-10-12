@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { axiosInstance } from '../lib/axios';
 import { toast } from 'sonner';
 import { identifyUser, resetAnalytics, capture } from '../lib/analytics';
+import { useCreditStore } from './creditStore';
 
 export const useAuthStore = create((set) => ({
   authUser: null,
@@ -21,6 +22,7 @@ export const useAuthStore = create((set) => ({
       set({
         authUser: response.data.user
       });
+      useCreditStore.getState().setCredits(response.data.user.credits);
       identifyUser(response.data.user);
     } catch (error) {
       console.error("Check auth error:", error);
@@ -44,6 +46,7 @@ export const useAuthStore = create((set) => ({
       }
 
       set({ authUser: user });
+      useCreditStore.getState().setCredits(user.credits);
       identifyUser(user);
       capture('user_logged_in', { method: 'google' });
 
@@ -85,6 +88,7 @@ export const useAuthStore = create((set) => ({
       }
 
       set({ authUser: null });
+      useCreditStore.getState().reset();
       resetAnalytics();
       toast.success("Logged out successfully");
 
