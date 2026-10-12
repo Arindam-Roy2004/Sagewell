@@ -65,6 +65,12 @@ const sourceSchema = new Schema(
       type: Number,
       default: 1,
     },
+    // Credits held for processing this source (micro-USD). `settled` makes the final
+    // charge / refund idempotent; see shared/libs/credits.js.
+    credit: {
+      reserved: { type: Number, default: 0 },
+      settled: { type: Boolean, default: false },
+    },
   },
   {
     timestamps: true,
