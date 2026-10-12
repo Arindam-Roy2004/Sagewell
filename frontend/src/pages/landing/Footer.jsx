@@ -60,7 +60,7 @@ export default function Footer({ basePath = "" }) {
       </div>
 
       <div className="my-4 flex flex-col items-center justify-between px-4 pt-8 pb-8 md:flex-row">
-        <p className="text-footer-link text-sm">© {year} Sagewell. Open source.</p>
+        <p className="text-footer-link text-sm">© {year} Sagewell. All rights reserved.</p>
       </div>
     </Container>
   );

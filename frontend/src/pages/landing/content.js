@@ -133,7 +133,7 @@ export const PRIVACY = {
 export const FAQ = {
   eyebrow: "FAQ",
   title: "Frequently asked questions",
-  subtitle: "Everything people ask before adding their first source. Still stuck? Open an issue.",
+  subtitle: "Everything people ask before adding their first source.",
   items: [
     { q: "What can I add?", a: "PDF, Word, CSV and text files, pasted notes and web pages." },
     { q: "How do citations work?", a: "Each answer is numbered against the passages it used. Click a number to open the source at that spot." },
