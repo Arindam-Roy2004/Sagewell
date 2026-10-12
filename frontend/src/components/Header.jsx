@@ -13,6 +13,9 @@ import { useAuthStore } from '../stores/authStore';
 import { useChatStore } from '../stores/chatStore';
 import ThemeToggle from './ThemeToggle';
 import LeafIcon from './icons/leaf-icon';
+import CreditMeter from './credits/CreditMeter';
+import CreditsMenuItem from './credits/CreditsMenuItem';
+import CreditsHost from './credits/CreditsHost';
 
 // Optional: same email as ADMIN_EMAIL in backend/.env. Users with role "admin" always qualify.
 const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || '';
@@ -25,6 +28,7 @@ export default function Header({ onOpenPalette }) {
   const activeChatId = useChatStore((s) => s.activeChatId);
 
   const isAdmin =
+    authUser?.isAdmin ||
     authUser?.role === 'admin' ||
     (ADMIN_EMAIL && authUser?.email?.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase());
   const chatTitle = activeChat?.title || (activeChatId ? 'Current dialogue' : 'New dialogue');
@@ -70,6 +74,7 @@ export default function Header({ onOpenPalette }) {
           <Search className="size-4" />
         </button>
 
+        <CreditMeter />
         <ThemeToggle className="size-8" />
 
         <DropdownMenu>
@@ -91,6 +96,8 @@ export default function Header({ onOpenPalette }) {
               </div>
             </div>
             <DropdownMenuSeparator />
+            <CreditsMenuItem />
+            <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={onOpenPalette}>
               <Command /> Command menu
               <Kbd className="ml-auto">{isMac ? '⌘' : 'Ctrl'}K</Kbd>
@@ -107,6 +114,8 @@ export default function Header({ onOpenPalette }) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <CreditsHost />
     </header>
   );
 }
