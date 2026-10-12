@@ -10,6 +10,16 @@ import { s3 } from "../../shared/libs/s3.js";
 import { getSharedRedisClient } from "../../shared/libs/redis.js";
 import { assertSafeUrl } from "../../shared/libs/urlGuard.js";
 import { logger } from "../../shared/libs/logger.js";
+import {
+  reserve,
+  adjust,
+  canAfford,
+  claimUrlSlot,
+  releaseUrlSlot,
+  refundSource,
+} from "../../shared/libs/credits.js";
+import { PRICING, LIMITS, toMicros, ingestCostMicros } from "../../shared/libs/pricing.js";
+import { sendInsufficientCredits } from "../middlewares/credits.middlewares.js";
 
 const sourceQueue = new Queue("process-source", {
   connection: getSharedRedisClient(),
@@ -23,7 +33,25 @@ const deleteSourceQueue = new Queue("delete-source", {
 
 const presignedUrlCache = new Map();
 
+// Undoes a credit hold when the request fails after it was taken. Once a source row exists
+// the shared refund path owns the hold (it is idempotent); before that, return it directly.
+async function releaseHold(userId, source, held, slot = false) {
+  try {
+    if (source) {
+      await Source.updateOne({ _id: source._id }, { status: "failed", errorMessage: "Could not be queued" });
+      await refundSource(source._id, "Could not queue source, credits returned");
+    } else {
+      if (held) await adjust(userId, -held);
+      if (slot) await releaseUrlSlot(userId);
+    }
+  } catch (error) {
+    logger.error({ err: error }, "Failed to release credit hold");
+  }
+}
+
 export const text2 = async (req, res) => {
+  let held = 0;
+  let source = null;
   try {
     const { text } = req.body;
     const userId = req.user._id;
@@ -40,11 +68,19 @@ export const text2 = async (req, res) => {
       });
     }
 
-    const source = await Source.create({
+    // Hold credits for the whole job up front; the worker settles to the real cost.
+    held = ingestCostMicros(text.length);
+    if (!(await reserve(userId, held)).ok) {
+      held = 0;
+      return sendInsufficientCredits(res, userId, "You don't have enough credits to add this text.");
+    }
+
+    source = await Source.create({
       userId,
       type: "text-paste",
       textContent: text,
       status: "queued",
+      credit: { reserved: held },
     });
 
     await sourceQueue.add("process-source", {
@@ -66,6 +102,7 @@ export const text2 = async (req, res) => {
       message: "Text queued",
     });
   } catch (error) {
+    await releaseHold(req.user._id, source, held);
     console.log(error);
     return res.status(500).json({
       success: false,
@@ -75,6 +112,9 @@ export const text2 = async (req, res) => {
 };
 
 export const web2 = async (req, res) => {
+  let held = 0;
+  let slot = false;
+  let source = null;
   try {
     const { url } = req.body;
     const userId = req.user._id;
@@ -101,11 +141,29 @@ export const web2 = async (req, res) => {
       });
     }
 
-    const source = await Source.create({
+    // Web pages are limited per account, and every one costs a flat fee on top of processing.
+    slot = await claimUrlSlot(userId);
+    if (!slot) {
+      return res.status(403).json({
+        success: false,
+        code: "URL_LIMIT_REACHED",
+        message: `Each account can add ${LIMITS.maxUrlSources} web link${LIMITS.maxUrlSources === 1 ? "" : "s"}. Upload the page as a file or paste its text instead.`,
+      });
+    }
+    held = toMicros(PRICING.fileReserve + PRICING.linkFlat);
+    if (!(await reserve(userId, held)).ok) {
+      held = 0;
+      await releaseUrlSlot(userId);
+      slot = false;
+      return sendInsufficientCredits(res, userId, "You don't have enough credits to add a web link.");
+    }
+
+    source = await Source.create({
       userId,
       type: "link",
       webURL: url,
       status: "queued",
+      credit: { reserved: held },
     });
     await sourceQueue.add("process-source", {
       sourceId: source._id.toString(),
@@ -125,6 +183,7 @@ export const web2 = async (req, res) => {
       message: "URL queued",
     });
   } catch (error) {
+    await releaseHold(req.user._id, source, held, slot);
     console.log(error);
     return res.status(500).json({
       success: false,
@@ -208,11 +267,16 @@ export const getPresign = async (req, res) => {
       });
     }
 
-    if (fileSize > 50 * 1024 * 1024) {
+    if (fileSize > LIMITS.maxFileBytes) {
       return res.status(400).json({
         success: false,
-        message: "File size should be less than 50MB",
+        message: `File size should be less than ${Math.round(LIMITS.maxFileBytes / 1024 / 1024)}MB`,
       });
+    }
+
+    // Fail before the upload starts if the account can't pay for processing.
+    if (!(await canAfford(userId, toMicros(PRICING.fileReserve)))) {
+      return sendInsufficientCredits(res, userId, "You don't have enough credits to add a file.");
     }
 
     let type;
@@ -308,18 +372,40 @@ export const confirmUpload = async (req, res) => {
       });
     }
 
-    source.status = "queued";
-    await Promise.all([
-      source.save(),
-      sourceQueue.add("process-source", {
-        sourceId: source._id.toString(),
-        userId: userId.toString(),
-        s3Key: source.s3Key,
-        type: source.type,
-        typeSpecificData: source.textContent,
-        mimeType: source.mimeType,
-      }),
-    ]);
+    // Only the first confirm of an upload queues it and takes a credit hold; a repeat is a no-op.
+    // The status flip is atomic, so two concurrent confirms can't both charge and queue.
+    if (source.status === "uploading") {
+      const held = toMicros(PRICING.fileReserve);
+      if (!(await reserve(userId, held)).ok) {
+        return sendInsufficientCredits(res, userId, "You don't have enough credits to process this file.");
+      }
+      const claimed = await Source.findOneAndUpdate(
+        { _id: source._id, status: "uploading" },
+        { $set: { status: "queued", credit: { reserved: held, settled: false } } },
+        { new: true },
+      ).catch(async (error) => {
+        await adjust(userId, -held);
+        throw error;
+      });
+      source.status = "queued";
+      if (!claimed) {
+        await adjust(userId, -held); // another confirm got there first and queued it
+      } else {
+        try {
+          await sourceQueue.add("process-source", {
+            sourceId: source._id.toString(),
+            userId: userId.toString(),
+            s3Key: source.s3Key,
+            type: source.type,
+            typeSpecificData: source.textContent,
+            mimeType: source.mimeType,
+          });
+        } catch (error) {
+          await releaseHold(userId, source, held);
+          throw error;
+        }
+      }
+    }
 
     return res.status(200).json({
       success: true,
