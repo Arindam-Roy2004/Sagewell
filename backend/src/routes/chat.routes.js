@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { isLoggedIn } from '../middlewares/auth.middlewares.js';
 import { chatLimiter } from '../middlewares/rateLimit.middlewares.js';
+import { chatCredits, limitMessageSize } from '../middlewares/credits.middlewares.js';
 import { validate } from '../middlewares/validate.middlewares.js';
 import CreateChatDto from '../dto/chat/create-chat.dto.js';
 import CreateMessageDto from '../dto/chat/create-message.dto.js';
@@ -33,7 +34,7 @@ router.get("/", isLoggedIn, listChats);
 router.post("/:chatId/stop", isLoggedIn, stopGeneration);
 
 // Regenerate the last assistant message (SSE)
-router.post("/:chatId/regenerate", isLoggedIn, chatLimiter, regenerateMessage);
+router.post("/:chatId/regenerate", isLoggedIn, chatLimiter, chatCredits, regenerateMessage);
 
 // Save a partial response after the user stops generation
 router.post("/:chatId/save-partial", isLoggedIn, savePartialResponse);
@@ -45,7 +46,7 @@ router.patch("/:chatId/pin", isLoggedIn, togglePinChat);
 router.post("/:chatId/feedback", isLoggedIn, setMessageFeedback);
 
 // Send a message and stream response (SSE)
-router.post("/:chatId/message", isLoggedIn, chatLimiter, validate(CreateMessageDto), createMessage);
+router.post("/:chatId/message", isLoggedIn, chatLimiter, validate(CreateMessageDto), limitMessageSize, chatCredits, createMessage);
 
 // ── Generic chat-level routes ────────────────────────────────────────────────
 // Fetch a single chat with full message history
