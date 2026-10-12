@@ -29,6 +29,8 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { cn } from '@/lib/utils';
 import { useSourceStore } from '../stores/sourceStore';
 import { useChatStore } from '../stores/chatStore';
+import { useCreditStore } from '../stores/creditStore';
+import CostHint from './credits/CostHint';
 import { getSourceMeta, getSourceName, describeSourceDeletion } from './workspace/source-meta';
 import { SourceIcon, SourceStatus } from './workspace/source-badges';
 
@@ -108,6 +110,11 @@ export default function SourcePanel({ headerActions }) {
   const startNewChat = useChatStore((s) => s.startNewChat);
   const getSourceDeletionImpact = useChatStore((s) => s.getSourceDeletionImpact);
   const isChatActive = Boolean(activeChatId);
+  const credits = useCreditStore((s) => s.credits);
+  const pricing = useCreditStore((s) => s.pricing);
+  const linkSlotsUsed = credits ? credits.urlSources.used >= credits.urlSources.max : false;
+  const maxFileMb = pricing?.fileSource.maxMb ?? 20;
+  const fromCost = (key) => pricing?.[key]?.from ?? '…';
 
   const [addOpen, setAddOpen] = useState(false);
   const [activeInput, setActiveInput] = useState('text');
@@ -207,7 +214,7 @@ export default function SourcePanel({ headerActions }) {
   const submitting = isUploading;
   const canSubmit =
     (activeInput === 'text' && textInput.trim()) ||
-    (activeInput === 'url' && urlInput.trim()) ||
+    (activeInput === 'url' && urlInput.trim() && !linkSlotsUsed) ||
     (activeInput === 'upload' && file);
   const submitLabel = activeInput === 'text' ? 'Add text' : activeInput === 'url' ? 'Add link' : 'Upload file';
   const onSubmit = activeInput === 'text' ? handleTextSubmit : activeInput === 'url' ? handleUrlSubmit : handleFileSubmit;
@@ -441,7 +448,7 @@ export default function SourcePanel({ headerActions }) {
               </Button>
             </div>
 
-            <p className="mt-5 text-[11px] text-muted-foreground">PDF, Word, CSV or TXT · up to 50 MB</p>
+            <p className="mt-5 text-[11px] text-muted-foreground">PDF, Word, CSV or TXT · up to 20 MB</p>
           </div>
         )}
 
@@ -515,9 +522,10 @@ export default function SourcePanel({ headerActions }) {
                   onChange={(e) => setTextInput(e.target.value)}
                   className="field-sizing-fixed h-48 overflow-y-auto"
                 />
-                <p className="text-right text-xs text-muted-foreground tabular-nums">
-                  {textInput.length.toLocaleString()} characters
-                </p>
+                <div className="flex items-center justify-between gap-3">
+                  <CostHint>Costs from {fromCost('textSource')} credits, more for longer text.</CostHint>
+                  <p className="shrink-0 text-xs text-muted-foreground tabular-nums">{textInput.length.toLocaleString()} characters</p>
+                </div>
               </div>
             )}
 
@@ -552,7 +560,8 @@ export default function SourcePanel({ headerActions }) {
                       <Upload className="size-4 text-muted-foreground" />
                     </span>
                     <p className="mt-3 text-sm font-medium text-foreground">Drop a file here, or click to browse</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">PDF, Word (DOCX), CSV or TXT · up to 50 MB</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">PDF, Word (DOCX), CSV or TXT · up to {maxFileMb} MB</p>
+                    <CostHint className="mt-3">Costs from {fromCost('fileSource')} credits, more for longer documents.</CostHint>
                   </>
                 )}
               </div>
@@ -574,7 +583,16 @@ export default function SourcePanel({ headerActions }) {
                     aria-label="Web page address"
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">Works with articles, docs and most public pages.</p>
+                {linkSlotsUsed ? (
+                  <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground">
+                    You&apos;ve used your web link. Upload the page as a file or paste its text instead.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">Works with articles, docs and most public pages.</p>
+                    <CostHint>Costs from {fromCost('linkSource')} credits. Each account can add {credits?.urlSources.max ?? 1} web link.</CostHint>
+                  </>
+                )}
               </div>
             )}
           </div>
