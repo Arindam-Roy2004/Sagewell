@@ -87,8 +87,8 @@ flowchart TB
     end
 
     subgraph AI["AI services"]
-        Gemini["Google Gemini<br/>answers, grading, summaries"]
-        Embed["Gemini embeddings<br/>text to vectors"]
+        Gemini["LLM via OpenRouter (DeepSeek V4 Flash)<br/>answers, grading, summaries"]
+        Embed["Gemini embeddings via OpenRouter<br/>text to vectors"]
         Google["Google Sign-In<br/>identity check"]
     end
 
@@ -116,7 +116,7 @@ flowchart TB
 | Frontend | `frontend/` | Shows the pages, sends your clicks to the API, and shows the streamed answers. |
 | API | `backend/src/` | Checks your login, validates input, saves data, queues jobs, searches, and streams answers. |
 | Worker | `backend/worker/` | Runs background jobs: process a source, delete a source, summarise a chat, save memories, store traces. |
-| Shared code | `backend/shared/` | Database models, connections to MongoDB, Redis, Qdrant, S3, Neo4j, and the Gemini helper. Used by both API and worker. |
+| Shared code | `backend/shared/` | Database models, connections to MongoDB, Redis, Qdrant, S3, Neo4j, and the LLM helper. Used by both API and worker. |
 | Infrastructure | `backend/docker-compose.*.yml`, `infra/`, `.github/workflows/` | Docker setup, Nginx and Caddy config, and the deploy pipeline. |
 
 ### Why these tools
@@ -207,7 +207,7 @@ flowchart LR
     D --> E["Save chunks to MongoDB"]
     D --> F["Create embeddings<br/>text to vectors"]
     F --> G["Store vectors in Qdrant"]
-    B --> H["Ask Gemini for a<br/>title and summary"]
+    B --> H["Ask the LLM for a<br/>title and summary"]
     H --> I["Update the source"]
     E --> J(["status: completed"])
     G --> J
@@ -230,7 +230,7 @@ sequenceDiagram
     participant RET as Retrieval pipeline
     participant Q as Qdrant
     participant DB as MongoDB
-    participant G as Gemini
+    participant G as LLM
     participant W as Worker (queue)
 
     User->>FE: Ask a question
@@ -255,7 +255,7 @@ sequenceDiagram
     API-->>FE: SSE "done" (full answer)
 ```
 
-If you press **Stop**, the browser closes the stream. The API sees the disconnect, stops calling Gemini, and keeps the partial answer.
+If you press **Stop**, the browser closes the stream. The API sees the disconnect, stops calling the LLM, and keeps the partial answer.
 
 ### 5. Deleting a source
 
@@ -364,7 +364,7 @@ flowchart TD
     S3["Step 3: Search both ways<br/>Vector search (meaning)<br/>BM25 (exact keywords)"] --> S4
     S4["Step 4: Merge results<br/>weighted Reciprocal Rank Fusion"] --> S5
     S5["Step 5: Drop weak tail<br/>relevance floor"] --> S6
-    S6["Step 6: Re-rank with Gemini<br/>+ MMR for variety"] --> S7
+    S6["Step 6: Re-rank with the LLM<br/>+ MMR for variety"] --> S7
     S7{"Step 7: Are the top<br/>passages good enough?"}
     S7 -- "yes (fast path)" --> S9
     S7 -- "no" --> S8["Step 8: Corrective loop<br/>rewrite and search again"]
@@ -381,7 +381,7 @@ flowchart TD
 | Vector + BM25 | Vector search finds similar **meaning**. BM25 finds exact **words**. Using both catches more. |
 | RRF | Combine both ranked lists into one. |
 | Relevance floor | Cut off the weak tail so the model is not distracted. |
-| Re-rank + MMR | Gemini re-orders the best candidates. MMR makes sure they are not all the same paragraph. |
+| Re-rank + MMR | The LLM re-orders the best candidates. MMR makes sure they are not all the same paragraph. |
 | CRAG loop | If the passages are not good enough, rewrite the search and try again. |
 | Parent expansion | Replace each small match with its larger parent text. |
 
@@ -423,7 +423,7 @@ flowchart LR
         Caddy2["Caddy<br/>HTTPS :443"] --> APIc["api-service :8080"]
         APIc --- Redis2[("redis")]
         Wc["worker"] --- Redis2
-        APIc --- Ext(("MongoDB, Qdrant,<br/>S3, Gemini"))
+        APIc --- Ext(("MongoDB, Qdrant,<br/>S3, OpenRouter"))
         Wc --- Ext
     end
 
@@ -455,7 +455,7 @@ The deploy job waits for the tests to pass. It also does not cancel a deploy tha
 │   ├── worker/               Background job workers
 │   │   └── processors/       One file per job type
 │   ├── shared/               Used by API and worker
-│   │   ├── libs/             DB, Redis, Qdrant, S3, Neo4j, Gemini helpers
+│   │   ├── libs/             DB, Redis, Qdrant, S3, Neo4j, LLM helpers
 │   │   └── models/           Mongoose schemas
 │   ├── tests/                bun test suites
 │   └── docker-compose.*.yml  Local and server Docker setups
@@ -473,7 +473,7 @@ The deploy job waits for the tests to pass. It also does not cancel a deploy tha
 - Node.js 18 or newer (runs the worker and the frontend)
 - **MongoDB**, **Redis**, and **Qdrant** running
 - Optional: **Neo4j** (memory graph) and **S3 / Cloudflare R2** (file storage)
-- A Google Gemini API key, and a Google OAuth client ID for sign-in
+- An OpenRouter API key, and a Google OAuth client ID for sign-in
 
 ### Steps
 
@@ -490,7 +490,7 @@ bun run dev              # http://localhost:8080
 ```bash
 # Terminal 2: the worker (required, or new sources stay "processing")
 # It reuses backend/node_modules from step 1. Do NOT run npm install inside
-# backend/worker: two copies of the AI SDK would break Gemini. worker/package.json
+# backend/worker: two copies of the AI SDK would break the LLM provider. worker/package.json
 # is only used by the Docker image.
 cd backend/worker
 node index.js
@@ -540,7 +540,7 @@ docker compose -f docker-compose.server.yml up --build
 | Worker | Node.js, BullMQ |
 | Data | MongoDB (Mongoose), Qdrant (vectors), Redis (queues), Neo4j (optional memory graph) |
 | Files | S3 / Cloudflare R2 |
-| AI | Google Gemini via the AI SDK, LangChain.js for splitting and vector store |
+| AI | DeepSeek V4 Flash + Gemini embeddings on OpenRouter via the AI SDK, LangChain.js for splitting and vector store |
 | Auth | Google Sign-In, JWT access and refresh cookies |
 | Deploy | Docker, GitHub Actions, Docker Hub, Caddy, Vercel |
 

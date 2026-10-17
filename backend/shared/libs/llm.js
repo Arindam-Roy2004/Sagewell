@@ -1,35 +1,53 @@
 import "./env.js";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText, streamText, Output } from "ai";
 import { recordLlmUsage } from "./usageMeter.js";
-import { estimateTokens } from "./pricing.js";
+import { estimateTokens, MAX_PRICE } from "./pricing.js";
 
 /**
- * Gemini agent runner, built on the AI SDK's Google provider.
+ * LLM agent runner, built on the AI SDK's OpenAI-compatible provider pointed at OpenRouter.
  *
  * An `Agent` is a named prompt (system instructions + model + optional zod output schema).
  * `run(agent, prompt)` returns `{ finalOutput }`: the parsed object when the agent has an
  * `outputType`, otherwise plain text. `run(agent, prompt, { stream: true, signal })`
  * returns an object whose `toTextStream()` yields text chunks as they arrive.
  *
- * Models (override in backend/.env):
- *   GEMINI_MODEL_MAIN  - answers, re-ranking, grading, routing, evaluation
- *   GEMINI_MODEL_LIGHT - quick tasks: query rewriting, summaries
+ * Models (OpenRouter ids, override in backend/.env):
+ *   LLM_MODEL_MAIN  - answers, re-ranking, grading, routing, evaluation
+ *   LLM_MODEL_LIGHT - quick tasks: query rewriting, summaries
  */
-const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
+export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+
+const openrouter = createOpenAICompatible({
+  name: "openrouter",
+  baseURL: OPENROUTER_BASE_URL,
+  apiKey: process.env.OPENROUTER_API_KEY,
+  headers: { "X-Title": "Sagewell" },
+  includeUsage: true,
+  supportsStructuredOutputs: true,
+  // Provider routing: never pay more than the cap (USD per 1M tokens) that pricing.js bills
+  // at, and send structured-output calls only to providers that honour json_schema.
+  transformRequestBody: (body) => ({
+    ...body,
+    provider: {
+      max_price: { prompt: MAX_PRICE.input, completion: MAX_PRICE.output },
+      ...(body.response_format ? { require_parameters: true } : {}),
+    },
+  }),
+});
 
 export const MODELS = {
-  main: process.env.GEMINI_MODEL_MAIN || "gemini-3.1-flash-lite",
-  light: process.env.GEMINI_MODEL_LIGHT || "gemini-3.1-flash-lite",
+  main: process.env.LLM_MODEL_MAIN || "deepseek/deepseek-v4-flash",
+  light: process.env.LLM_MODEL_LIGHT || "deepseek/deepseek-v4-flash",
 };
 
-/** Accepts a tier name ("main" / "light") or a full Gemini model id. */
+/** Accepts a tier name ("main" / "light") or a full OpenRouter model id. */
 export function resolveModelName(model) {
   return MODELS[model] || model || MODELS.main;
 }
 
-export function getGoogleModel(model) {
-  return google(resolveModelName(model));
+export function getModel(model) {
+  return openrouter.chatModel(resolveModelName(model));
 }
 
 // Optional lifecycle hooks (see src/utils/traceMiddleware.js). Hook errors never break a run.
@@ -51,7 +69,7 @@ async function notify(hook, payload) {
 }
 
 // Reports one finished model call to the active credit meter (see usageMeter.js).
-// `outputTokens` already includes thinking tokens, which Gemini bills as output.
+// `outputTokens` already includes reasoning tokens, which are billed as output.
 function meterUsage(model, usage) {
   const inputTokens = usage?.inputTokens ?? 0;
   const outputTokens = usage?.outputTokens ?? Math.max(0, (usage?.totalTokens ?? 0) - inputTokens);
@@ -84,7 +102,7 @@ async function* meteredTextStream(result, { model, promptChars, state }) {
 
 export class Agent {
   constructor({ name, model, instructions, outputType } = {}) {
-    this.name = name || "gemini-agent";
+    this.name = name || "llm-agent";
     this.model = resolveModelName(model);
     this.instructions = instructions || "";
     this.outputType = outputType || null;
@@ -93,7 +111,7 @@ export class Agent {
 
 export async function run(agent, prompt, options = {}) {
   const modelName = agent.model;
-  const model = google(modelName);
+  const model = openrouter.chatModel(modelName);
   const system = agent.instructions || undefined;
   const signal = options.signal;
 
@@ -116,7 +134,7 @@ export async function run(agent, prompt, options = {}) {
         // stream is visible in the API logs (the caller sees the stream end early).
         onError: ({ error }) => {
           if (signal?.aborted) return;
-          console.error(`❌ [${agent.name}] Gemini stream error:`, error?.message || error);
+          console.error(`❌ [${agent.name}] LLM stream error:`, error?.message || error);
         },
       });
       return {
@@ -157,4 +175,4 @@ export async function run(agent, prompt, options = {}) {
   }
 }
 
-export { google };
+export { openrouter };

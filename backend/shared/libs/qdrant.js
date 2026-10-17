@@ -19,7 +19,7 @@ const COLLECTION_INDEXES = {
   "memory-notebookLM-Collection": ["metadata.userId"],
 };
 
-// Vector size comes from the embeddings model itself, so changing GEMINI_EMBEDDING_MODEL
+// Vector size comes from the embeddings model itself, so changing EMBEDDING_MODEL
 // can't silently create a collection with the wrong dimensions. Only probed when a
 // collection actually has to be created.
 let vectorSizePromise = null;

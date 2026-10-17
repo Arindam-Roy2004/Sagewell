@@ -20,8 +20,8 @@ dotenv.config(); // fallback
 const criticalSchema = z.object({
   MONGODB_URI: z.string().min(1, "MONGODB_URI is required"),
   JWTSECRET_KEY: z.string().min(1, "JWTSECRET_KEY is required"),
-  // Gemini powers both the chat/agent models (shared/libs/llm.js) and embeddings (shared/libs/embeddings.js).
-  GEMINI_API_KEY: z.string().min(1, "GEMINI_API_KEY is required"),
+  // OpenRouter powers both the chat/agent models (shared/libs/llm.js) and embeddings (shared/libs/embeddings.js).
+  OPENROUTER_API_KEY: z.string().min(1, "OPENROUTER_API_KEY is required"),
 });
 
 const recommendedVars = [

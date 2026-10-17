@@ -38,7 +38,7 @@ const userSchema = new Schema(
       type: [String],
       default: [],
     },
-    // Gemini usage budget, in micro-USD (see shared/libs/pricing.js). Accounts created before
+    // Model usage budget, in micro-USD (see shared/libs/pricing.js). Accounts created before
     // credits existed have no stored value; shared/libs/credits.js initialises them on first use.
     credits: {
       granted: { type: Number, default: () => toMicros(STARTING_CREDITS) },

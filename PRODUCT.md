@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-React (Vite), Zustand, Tailwind CSS, Radix UI / ShadCN, Node.js + Express, MongoDB, Qdrant Vector DB, Google Gemini & LangChain.js
+React (Vite), Zustand, Tailwind CSS, Radix UI / ShadCN, Node.js + Express, MongoDB, Qdrant Vector DB, OpenRouter (DeepSeek V4 Flash, Gemini embeddings) & LangChain.js
 
 ## Users
 
@@ -29,7 +29,7 @@ Deep research sessions, academic paper review, exam preparation, and multi-sourc
 ## Capabilities and Constraints
 
 - **Multi-Format Ingestion:** File upload support for PDF, DOCX, TXT, CSV, web URLs, and pasted raw text.
-- **AI Processing:** Automated summary and title generation upon ingestion via Gemini / LangChain.js.
+- **AI Processing:** Automated summary and title generation upon ingestion via the LLM / LangChain.js.
 - **RAG Q&A:** Vector embeddings stored in Qdrant DB for context-aware Q&A with document citations.
 - **User Accounts:** JWT authentication & MongoDB database for user data and document management.
 - **Frontend Stack:** React 19 (Vite), Zustand for global state, React Router, Tailwind CSS, Lucide icons, and Radix UI.

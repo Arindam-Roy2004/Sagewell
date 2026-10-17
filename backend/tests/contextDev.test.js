@@ -5,7 +5,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 // env.js validates these at import time; give it harmless values for the test run.
 process.env.MONGODB_URI ||= "mongodb://localhost:27017/test";
 process.env.JWTSECRET_KEY ||= "test-secret";
-process.env.GEMINI_API_KEY ||= "test-gemini";
+process.env.OPENROUTER_API_KEY ||= "test-openrouter";
 
 const { scrapeMarkdown, ContextDevError, isContextDevConfigured } = await import(
   "../shared/libs/contextDev.js"

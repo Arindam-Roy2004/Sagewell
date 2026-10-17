@@ -1,5 +1,5 @@
 /**
- * Credit pricing: the single place that turns Gemini usage into credits.
+ * Credit pricing: the single place that turns LLM usage into credits.
  *
  * Units
  *  - Money is tracked in micro-USD (integers). $1 per 1M tokens == 1 micro-USD per token,
@@ -7,7 +7,7 @@
  *  - 1 credit == CREDIT_MICROS (default $0.001). Users see credits; the database stores micros.
  *
  * Every figure can be tuned with an env var, so limits change without a deploy.
- * Gemini prices: https://ai.google.dev/gemini-api/docs/pricing
+ * OpenRouter prices: https://openrouter.ai/models
  */
 const num = (value, fallback) => {
   const n = Number(value);
@@ -18,27 +18,26 @@ export const CREDIT_MICROS = num(process.env.CREDIT_MICROS, 1000);
 export const toMicros = (credits) => Math.round(credits * CREDIT_MICROS);
 export const toCredits = (micros) => Math.round((micros / CREDIT_MICROS) * 100) / 100;
 
-/** Credits every new account starts with (about 10 rupees of Gemini usage). */
+/** Credits every new account starts with (about 10 rupees of model usage). */
 export const STARTING_CREDITS = num(process.env.CREDITS_STARTING, 100);
 
 /** Safety multiplier on measured cost: covers FX drift, retries and the background jobs. */
 export const COST_MARKUP = num(process.env.CREDITS_MARKUP, 1.2);
 
-// USD per 1M tokens [input, output]. Output includes thinking tokens.
-const MODEL_PRICES = {
-  "gemini-3.1-flash-lite": [0.25, 1.5],
-  "gemini-3.5-flash-lite": [0.3, 2.5],
-  "gemini-2.5-flash-lite": [0.1, 0.4],
-  "gemini-2.5-flash": [0.3, 2.5],
-  "gemini-3-flash-preview": [0.5, 3.0],
-  "gemini-3.6-flash": [0.75, 3.75],
-  "gemini-3.8-flash": [0.75, 3.75],
-  "gemini-2.5-pro": [1.25, 10],
-  "gemini-3.1-pro-preview": [2.0, 12.0],
+// USD per 1M tokens [input, output]. Output includes reasoning tokens.
+// OpenRouter routes each call to one of several providers at different prices, so llm.js caps
+// every request at MAX_PRICE and models are billed at that cap (the worst case).
+export const MAX_PRICE = {
+  input: num(process.env.LLM_MAX_PRICE_INPUT, 0.2),
+  output: num(process.env.LLM_MAX_PRICE_OUTPUT, 0.6),
 };
-// Unknown model: bill at the dearest rate so a typo in .env can never make usage free.
-const FALLBACK_PRICE = [2.0, 12.0];
-const EMBEDDING_PRICE = 0.2;
+const MODEL_PRICES = {
+  "deepseek/deepseek-v4-flash": [MAX_PRICE.input, MAX_PRICE.output],
+};
+// Any other model: bill at the cap too, since requests can never cost more than it.
+const FALLBACK_PRICE = [MAX_PRICE.input, MAX_PRICE.output];
+// google/gemini-embedding-001 on OpenRouter.
+const EMBEDDING_PRICE = num(process.env.EMBEDDING_PRICE, 0.15);
 
 /** Rough token estimate for text when the provider reports none (embeddings, aborted streams). */
 export const estimateTokens = (chars) => Math.ceil((chars || 0) / 3);

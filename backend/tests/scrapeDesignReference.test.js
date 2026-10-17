@@ -6,7 +6,7 @@ import path from "path";
 
 process.env.MONGODB_URI ||= "mongodb://localhost:27017/test";
 process.env.JWTSECRET_KEY ||= "test-secret";
-process.env.GEMINI_API_KEY ||= "test-gemini";
+process.env.OPENROUTER_API_KEY ||= "test-openrouter";
 
 const { scrapeDesignReference, decodeDataUrl } = await import("../scripts/scrape-design-reference.js");
 
