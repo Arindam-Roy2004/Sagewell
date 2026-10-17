@@ -26,15 +26,26 @@ const openrouter = createOpenAICompatible({
   includeUsage: true,
   supportsStructuredOutputs: true,
   // Provider routing: never pay more than the cap (USD per 1M tokens) that pricing.js bills
-  // at, and send structured-output calls only to providers that honour json_schema.
+  // at, prefer the fastest provider under it (the default pick streams ~40 tok/s, the fastest
+  // ~65), and send structured-output calls only to providers that honour json_schema.
   transformRequestBody: (body) => ({
     ...body,
     provider: {
       max_price: { prompt: MAX_PRICE.input, completion: MAX_PRICE.output },
+      sort: "throughput",
       ...(body.response_format ? { require_parameters: true } : {}),
     },
   }),
 });
+
+/**
+ * Reasoning ("thinking") adds 2-3s to every call, even trivial ones, and the chat pipeline
+ * makes several calls in a row before the answer starts. So it is off unless an agent asks
+ * for it: "off" | "low" | "medium" | "high".
+ */
+function reasoningOptions(level) {
+  return { openrouter: { reasoning: level && level !== "off" ? { effort: level } : { enabled: false } } };
+}
 
 export const MODELS = {
   main: process.env.LLM_MODEL_MAIN || "deepseek/deepseek-v4-flash",
@@ -101,8 +112,9 @@ async function* meteredTextStream(result, { model, promptChars, state }) {
 }
 
 export class Agent {
-  constructor({ name, model, instructions, outputType } = {}) {
+  constructor({ name, model, instructions, outputType, reasoning } = {}) {
     this.name = name || "llm-agent";
+    this.reasoning = reasoning || "off";
     this.model = resolveModelName(model);
     this.instructions = instructions || "";
     this.outputType = outputType || null;
@@ -113,6 +125,7 @@ export async function run(agent, prompt, options = {}) {
   const modelName = agent.model;
   const model = openrouter.chatModel(modelName);
   const system = agent.instructions || undefined;
+  const providerOptions = reasoningOptions(agent.reasoning);
   const signal = options.signal;
 
   await notify("onSpanStart", { agent: agent.name, model: modelName, prompt });
@@ -125,6 +138,7 @@ export async function run(agent, prompt, options = {}) {
         system,
         prompt,
         abortSignal: signal,
+        providerOptions,
         onEnd: (event) => {
           if (state.recorded) return;
           state.recorded = true;
@@ -159,13 +173,14 @@ export async function run(agent, prompt, options = {}) {
         prompt,
         output: Output.object({ schema: agent.outputType }),
         abortSignal: signal,
+        providerOptions,
       });
       meterUsage(modelName, result.usage);
       await notify("onSpanEnd", { agent: agent.name, output: result.output });
       return { finalOutput: result.output, usage: result.usage };
     }
 
-    const result = await generateText({ model, system, prompt, abortSignal: signal });
+    const result = await generateText({ model, system, prompt, abortSignal: signal, providerOptions });
     meterUsage(modelName, result.usage);
     await notify("onSpanEnd", { agent: agent.name, output: result.text });
     return { finalOutput: result.text, usage: result.usage };

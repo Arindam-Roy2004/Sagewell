@@ -18,6 +18,8 @@ import { createTraceSession } from "../utils/traceMiddleware.js";
 const chatAssistantAgent = new Agent({
   name: "sagewell-chat-agent",
   model: MODELS.main,
+  // Off by default for speed; set LLM_REASONING_ANSWER=low|medium|high to let it think first.
+  reasoning: process.env.LLM_REASONING_ANSWER || "off",
   instructions: `You are Sagewell, an AI research assistant analyzing documents and pair-programming with the user.
 Answer the user's questions clearly, accurately, and strictly grounded in the provided document evidence and personal context.
 
