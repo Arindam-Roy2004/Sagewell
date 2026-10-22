@@ -68,6 +68,8 @@ jobs:
           context: ./backend
           file: ./backend/${{ matrix.dockerfile }}
           push: true
+          # Re-resolve the base image tag every build, so Node security patches land.
+          pull: true
           # SHA tag alongside latest, so a rollback has something to point at.
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:latest
