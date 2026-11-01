@@ -4,23 +4,26 @@ import { cva } from "class-variance-authority";
 
 import { cn } from "@/lib/utils"
 
-// shadcn (new-york) button on the neutral palette. `font="mono"` keeps the old
-// uppercase mono label for the few places that want it.
+// shadcn (new-york) button on the neutral palette. Filled variants paint a
+// layered "surface" (gradient body, edge highlight, ring, soft drop) on a
+// ::before so presses can scale it without moving the label; see .t-surface in
+// index.css. `font="mono"` keeps the old uppercase mono label for the few
+// places that want it.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all cursor-pointer select-none shrink-0 outline-none disabled:pointer-events-none disabled:opacity-50 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "relative isolate inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md bg-clip-padding text-sm font-medium transition-[color,box-shadow] cursor-pointer select-none shrink-0 outline-none disabled:pointer-events-none disabled:opacity-50 focus-visible:ring-[3px] focus-visible:ring-ring/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
-        brand: "bg-brand-app text-white shadow-xs hover:bg-brand-app/90",
-        destructive: "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/30",
-        outline: "border border-border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
-        secondary: "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
+        default: "t-surface t-surface-primary text-primary-foreground",
+        brand: "t-surface t-surface-brand text-white",
+        destructive: "t-surface t-surface-destructive text-white focus-visible:ring-destructive/30",
+        outline: "t-surface t-surface-outline text-foreground",
+        secondary: "t-surface t-surface-secondary text-secondary-foreground",
         ghost: "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/60",
         link: "text-primary underline-offset-4 hover:underline",
         // Older names kept for existing call sites.
-        ink: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
-        accent: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+        ink: "t-surface t-surface-primary text-primary-foreground",
+        accent: "t-surface t-surface-primary text-primary-foreground",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
