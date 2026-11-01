@@ -14,9 +14,11 @@
       (function () {
         try {
           var stored = localStorage.getItem('sagewell-theme');
-          var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var dark = stored !== 'light'; // first visit (nothing saved) opens dark
           document.documentElement.classList.toggle('dark', dark);
-        } catch (e) {}
+        } catch (e) {
+          document.documentElement.classList.add('dark');
+        }
       })();
     </script>
   </head>

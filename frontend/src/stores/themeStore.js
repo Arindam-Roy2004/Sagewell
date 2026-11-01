@@ -6,10 +6,9 @@ const getInitialTheme = () => {
     const stored = localStorage.getItem('sagewell-theme');
     if (stored === 'dark' || stored === 'light') return stored;
   } catch {
-    // storage unavailable (private mode); fall through to the OS preference
+    // storage unavailable (private mode); fall through to the default
   }
-  if (window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
-  return 'light';
+  return 'dark'; // first visit opens dark
 };
 
 export const useThemeStore = create((set, get) => ({
