@@ -5,12 +5,13 @@ import Chat from "../../shared/models/chat.model.js";
 import SignInEvent from "../../shared/models/signInEvent.model.js";
 import { creditSummary, listTransactions, grantCredits } from "../../shared/libs/credits.js";
 import { describeDevice } from "../../shared/libs/activity.js";
+import { userIsAdmin } from "../middlewares/auth.middlewares.js";
 import { PRICING, toMicros, toCredits } from "../../shared/libs/pricing.js";
 
 const DAY = 24 * 60 * 60 * 1000;
 const ONLINE_MS = 5 * 60 * 1000;
 const SERIES_DAYS = 14;
-const PUBLIC_USER_FIELDS = "name email avatar role createdAt lastLoginAt lastActiveAt loginCount credits usage";
+const PUBLIC_USER_FIELDS = "name email avatar role blockedAt createdAt lastLoginAt lastActiveAt loginCount credits usage";
 
 /** Client time zone for day buckets; anything invalid falls back to UTC. */
 function safeTimeZone(tz) {
@@ -55,6 +56,8 @@ function publicUser(user, counts) {
     email: user.email,
     avatar: user.avatar || null,
     role: user.role,
+    isAdmin: userIsAdmin(user),
+    blockedAt: user.blockedAt || null,
     createdAt: user.createdAt,
     lastLoginAt: user.lastLoginAt || null,
     lastActiveAt: user.lastActiveAt || null,
@@ -229,3 +232,22 @@ export const addCredits = async (req, res) => {
   const user = await User.findById(userId).select("credits usage").lean();
   return res.status(200).json({ success: true, credits: creditSummary(user) });
 };
+
+// POST /admin/users/:userId/block and /unblock — cut off or restore an account's access.
+// Admins can't be blocked here, so nobody can lock themselves or a fellow admin out.
+const setBlocked = (blocked) => async (req, res) => {
+  const { userId } = req.params;
+  const user = mongoose.Types.ObjectId.isValid(userId) ? await User.findById(userId).select("role email") : null;
+  if (!user) return res.status(404).json({ success: false, message: "User not found" });
+  if (blocked && userIsAdmin(user)) {
+    return res.status(400).json({ success: false, message: "Admin accounts can't be blocked" });
+  }
+
+  const updated = await User.findByIdAndUpdate(userId, { blockedAt: blocked ? new Date() : null }, { new: true })
+    .select("blockedAt")
+    .lean();
+  return res.status(200).json({ success: true, blockedAt: updated.blockedAt || null });
+};
+
+export const blockUser = setBlocked(true);
+export const unblockUser = setBlocked(false);

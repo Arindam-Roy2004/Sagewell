@@ -24,6 +24,7 @@ export const useAdminStore = create((set, get) => ({
   isLoadingUsers: false,
   isLoadingUser: false,
   isGranting: false,
+  isBlocking: false,
 
   fetchOverview: async () => {
     try {
@@ -101,6 +102,28 @@ export const useAdminStore = create((set, get) => ({
       return false;
     } finally {
       set({ isGranting: false });
+    }
+  },
+
+  setBlocked: async (userId, blocked) => {
+    try {
+      set({ isBlocking: true });
+      const res = await axiosInstance.post(`/admin/users/${userId}/${blocked ? 'block' : 'unblock'}`);
+      const { blockedAt } = res.data;
+      set((state) => ({
+        users: state.users.map((u) => (u.id === userId ? { ...u, blockedAt } : u)),
+        selectedUser:
+          state.selectedUser?.user.id === userId
+            ? { ...state.selectedUser, user: { ...state.selectedUser.user, blockedAt } }
+            : state.selectedUser,
+      }));
+      toast.success(blocked ? 'Account blocked' : 'Account unblocked');
+      return true;
+    } catch (error) {
+      toast.error(error.response?.data?.message || `Could not ${blocked ? 'block' : 'unblock'} this account`);
+      return false;
+    } finally {
+      set({ isBlocking: false });
     }
   },
 }));

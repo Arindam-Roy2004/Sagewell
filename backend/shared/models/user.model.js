@@ -49,6 +49,8 @@ const userSchema = new Schema(
     lastLoginAt: { type: Date, default: null },
     lastActiveAt: { type: Date, default: null },
     loginCount: { type: Number, default: 0 },
+    // Set by an admin to cut off access (sign-in, refresh and every API call); null = active.
+    blockedAt: { type: Date, default: null },
     // Lifetime counters used by hard per-account limits.
     usage: {
       urlSources: { type: Number, default: 0 },

@@ -77,7 +77,8 @@ export default function UsersTable() {
                     <div className="min-w-0 leading-tight">
                       <p className="flex items-center gap-1.5">
                         <span className="truncate font-medium text-foreground">{u.name}</span>
-                        {u.role === 'admin' && <Badge variant="brand" size="sm">Admin</Badge>}
+                        {u.isAdmin && <Badge variant="brand" size="sm">Admin</Badge>}
+                        {u.blockedAt && <Badge variant="destructive" size="sm">Blocked</Badge>}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">{u.email}</p>
                     </div>

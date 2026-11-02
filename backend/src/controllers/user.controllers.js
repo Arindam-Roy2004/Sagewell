@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import { OAuth2Client } from "google-auth-library";
 import { creditSummary } from "../../shared/libs/credits.js";
 import { recordSignIn } from "../../shared/libs/activity.js";
-import { userIsAdmin } from "../middlewares/auth.middlewares.js";
+import { userIsAdmin, ACCOUNT_BLOCKED_MESSAGE } from "../middlewares/auth.middlewares.js";
 
 dotenv.config();
 
@@ -88,6 +88,10 @@ export const googleLogin = async (req, res) => {
       await user.save();
     } else if (user.googleId !== payload.sub) {
       return res.status(401).json({ success: false, message: "Wrong Credentials" });
+    }
+
+    if (user.blockedAt) {
+      return res.status(403).json({ success: false, message: ACCOUNT_BLOCKED_MESSAGE });
     }
 
     const token = issueSession(res, user._id);
@@ -175,6 +179,9 @@ export const refreshAccessToken = async (req, res) => {
     const user = await User.findById(decoded.id).select("-password");
     if (!user) {
       return res.status(401).json({ success: false, message: "User no longer exists" });
+    }
+    if (user.blockedAt) {
+      return res.status(401).json({ success: false, message: ACCOUNT_BLOCKED_MESSAGE });
     }
 
     // Rotate: issue a fresh access token (and refresh cookie) on every refresh.

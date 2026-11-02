@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { X, Monitor, Smartphone, Plus, Loader2, MessageSquare, FileText, Undo2, Gift } from 'lucide-react';
+import { X, Monitor, Smartphone, Plus, Loader2, MessageSquare, FileText, Undo2, Gift, Ban, ShieldCheck } from 'lucide-react';
 import { Dialog, SheetContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import CreditBar from '@/components/credits/CreditBar';
@@ -85,6 +86,45 @@ function AddCredits({ userId }) {
   );
 }
 
+function AccessControl({ user }) {
+  const { setBlocked, isBlocking } = useAdminStore();
+  const [confirming, setConfirming] = useState(false);
+  const blocked = Boolean(user.blockedAt);
+
+  if (user.isAdmin) return <Empty>Admin accounts can't be blocked.</Empty>;
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
+      <p className="text-sm text-muted-foreground">
+        {blocked
+          ? <>Blocked {formatRelativeTime(user.blockedAt)}. They can't sign in or use the app.</>
+          : 'Blocking signs them out everywhere and stops them signing in again.'}
+      </p>
+      {blocked ? (
+        <Button variant="outline" size="xs" disabled={isBlocking} onClick={() => setBlocked(user.id, false)}>
+          {isBlocking ? <Loader2 className="animate-spin" /> : <ShieldCheck />} Unblock
+        </Button>
+      ) : (
+        <Button variant="destructive" size="xs" disabled={isBlocking} onClick={() => setConfirming(true)}>
+          <Ban /> Block
+        </Button>
+      )}
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={`Block ${user.name}?`}
+        description="They'll be signed out right away and won't be able to sign in until you unblock them. Their sources and chats are kept."
+        confirmLabel="Block"
+        destructive
+        loading={isBlocking}
+        onConfirm={async () => {
+          if (await setBlocked(user.id, true)) setConfirming(false);
+        }}
+      />
+    </div>
+  );
+}
+
 /** Side sheet for one account: who they are, how they sign in, and what they have used. */
 export default function UserSheet() {
   const { selectedUserId, selectedUser, isLoadingUser, closeUser } = useAdminStore();
@@ -102,7 +142,8 @@ export default function UserSheet() {
                 <div className="min-w-0">
                   <DialogTitle className="flex items-center gap-1.5 truncate text-sm font-semibold">
                     {user.name}
-                    {user.role === 'admin' && <Badge variant="brand" size="sm">Admin</Badge>}
+                    {user.isAdmin && <Badge variant="brand" size="sm">Admin</Badge>}
+                    {user.blockedAt && <Badge variant="destructive" size="sm">Blocked</Badge>}
                   </DialogTitle>
                   <DialogDescription className="truncate text-xs">{user.email}</DialogDescription>
                 </div>
@@ -152,6 +193,10 @@ export default function UserSheet() {
                   <CreditBar credits={user.credits} />
                   <AddCredits userId={user.id} />
                 </div>
+              </Section>
+
+              <Section title="Access">
+                <AccessControl user={user} />
               </Section>
 
               <Section title="Sign-in history">

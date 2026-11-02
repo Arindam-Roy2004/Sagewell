@@ -2,7 +2,7 @@ import { Router } from "express";
 import { isLoggedIn, isAdmin } from "../middlewares/auth.middlewares.js";
 import { validate } from "../middlewares/validate.middlewares.js";
 import GrantCreditsDto from "../dto/admin/grant-credits.dto.js";
-import { getOverview, listUsers, getUser, listSignIns, addCredits } from "../controllers/admin.controllers.js";
+import { getOverview, listUsers, getUser, listSignIns, addCredits, blockUser, unblockUser } from "../controllers/admin.controllers.js";
 
 const router = Router();
 
@@ -13,6 +13,8 @@ router.get("/overview", getOverview);
 router.get("/users", listUsers);
 router.get("/users/:userId", getUser);
 router.post("/users/:userId/credits", validate(GrantCreditsDto), addCredits);
+router.post("/users/:userId/block", blockUser);
+router.post("/users/:userId/unblock", unblockUser);
 router.get("/sign-ins", listSignIns);
 
 export default router;

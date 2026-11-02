@@ -3,6 +3,8 @@ import User from "../../shared/models/user.model.js";
 import "../../shared/libs/env.js";
 import { touchActivity } from "../../shared/libs/activity.js";
 
+export const ACCOUNT_BLOCKED_MESSAGE = "This account has been blocked. Contact support if you think this is a mistake.";
+
 export const isLoggedIn = async (req, res, next) => {
   try {
     let token;
@@ -40,6 +42,11 @@ export const isLoggedIn = async (req, res, next) => {
         success: false,
         message: "Session is no longer valid",
       });
+    }
+
+    // Checked on every request, so a block takes effect immediately, not when the token expires.
+    if (user.blockedAt) {
+      return res.status(401).json({ success: false, message: ACCOUNT_BLOCKED_MESSAGE });
     }
 
     req.user = user;
