@@ -18,6 +18,7 @@ import {
   CloudUpload,
   X,
   MessageSquarePlus,
+  ZapOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -114,6 +115,9 @@ export default function SourcePanel({ headerActions }) {
   const pricing = useCreditStore((s) => s.pricing);
   const linkSlotsUsed = credits ? credits.urlSources.used >= credits.urlSources.max : false;
   const fileSlotsUsed = credits?.fileSources ? credits.fileSources.used >= credits.fileSources.max : false;
+  const creditsExhausted = Boolean(credits?.exhausted);
+  const showExhausted = useCreditStore((s) => s.showExhausted);
+  const openCredits = useCreditStore((s) => s.setDialogOpen);
   const maxFileMb = pricing?.fileSource.maxMb ?? 20;
   const fromCost = (key) => pricing?.[key]?.from ?? '…';
 
@@ -238,7 +242,12 @@ export default function SourcePanel({ headerActions }) {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <Button size="xs" variant="outline" onClick={() => openAdd('text')} aria-label="Add a source">
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={() => (creditsExhausted ? showExhausted() : openAdd('text'))}
+            aria-label="Add a source"
+          >
             <Plus /> <span className="@max-[16rem]:sr-only">Add</span>
           </Button>
           {headerActions}
@@ -422,6 +431,12 @@ export default function SourcePanel({ headerActions }) {
             }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={(e) => {
+              if (creditsExhausted) {
+                e.preventDefault();
+                setIsDragging(false);
+                showExhausted();
+                return;
+              }
               handleDrop(e);
               if (e.dataTransfer.files?.[0]) openAdd('upload');
             }}
@@ -434,31 +449,44 @@ export default function SourcePanel({ headerActions }) {
               <Library className="size-5 text-muted-foreground" />
             </span>
             <p className="mt-4 text-sm font-semibold text-foreground">Add your first source</p>
-            <p className="mt-1 max-w-[230px] text-xs leading-relaxed text-balance text-muted-foreground">
-              {fileSlotsUsed ? 'Paste some notes or add a web page to get started.' : "Drop a file here, or choose how you'd like to add one."}
-            </p>
-
-            <div className="mt-5 grid w-full max-w-[240px] gap-2">
-              {!fileSlotsUsed && (
-                <Button size="sm" onClick={() => document.getElementById('file-upload')?.click()}>
-                  <CloudUpload /> Upload a file
+            {creditsExhausted ? (
+              <>
+                <p className="mt-1 max-w-[230px] text-xs leading-relaxed text-balance text-muted-foreground">
+                  You&apos;re out of credits, so new sources are paused.
+                </p>
+                <Button size="sm" variant="outline" className="mt-5" onClick={() => openCredits(true)}>
+                  <ZapOff /> View credits
                 </Button>
-              )}
-              <Button size="sm" variant={fileSlotsUsed ? 'default' : 'outline'} onClick={() => openAdd('text')}>
-                <NotebookPen /> Paste text
-              </Button>
-              {!linkSlotsUsed && (
-                <Button size="sm" variant="outline" onClick={() => openAdd('url')}>
-                  <Link2 /> Add a web page
-                </Button>
-              )}
-            </div>
+              </>
+            ) : (
+              <>
+                <p className="mt-1 max-w-[230px] text-xs leading-relaxed text-balance text-muted-foreground">
+                  {fileSlotsUsed ? 'Paste some notes or add a web page to get started.' : "Drop a file here, or choose how you'd like to add one."}
+                </p>
 
-            <p className="mt-5 text-[11px] text-balance text-muted-foreground">
-              {fileSlotsUsed
-                ? "You've used your free-trial file upload."
-                : `PDF, Word, CSV or TXT · up to ${maxFileMb} MB`}
-            </p>
+                <div className="mt-5 grid w-full max-w-[240px] gap-2">
+                  {!fileSlotsUsed && (
+                    <Button size="sm" onClick={() => document.getElementById('file-upload')?.click()}>
+                      <CloudUpload /> Upload a file
+                    </Button>
+                  )}
+                  <Button size="sm" variant={fileSlotsUsed ? 'default' : 'outline'} onClick={() => openAdd('text')}>
+                    <NotebookPen /> Paste text
+                  </Button>
+                  {!linkSlotsUsed && (
+                    <Button size="sm" variant="outline" onClick={() => openAdd('url')}>
+                      <Link2 /> Add a web page
+                    </Button>
+                  )}
+                </div>
+
+                <p className="mt-5 text-[11px] text-balance text-muted-foreground">
+                  {fileSlotsUsed
+                    ? "You've used your free-trial file upload."
+                    : `PDF, Word, CSV or TXT · up to ${maxFileMb} MB`}
+                </p>
+              </>
+            )}
           </div>
         )}
 

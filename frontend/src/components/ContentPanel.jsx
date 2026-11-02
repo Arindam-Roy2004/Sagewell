@@ -16,6 +16,7 @@ import {
   MessageSquareText,
   Quote,
   CalendarDays,
+  ZapOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -72,6 +73,8 @@ export default function ContentPanel({ headerActions }) {
   const { sources, selectedSource, getViewUrl, citationJump, deleteSource } = useSourceStore();
   const fileSources = useCreditStore((s) => s.credits?.fileSources);
   const fileSlotsUsed = fileSources ? fileSources.used >= fileSources.max : false;
+  const creditsExhausted = useCreditStore((s) => Boolean(s.credits?.exhausted));
+  const openCredits = useCreditStore((s) => s.setDialogOpen);
   const getSourceDeletionImpact = useChatStore((s) => s.getSourceDeletionImpact);
   const [isLoadingViewUrl, setIsLoadingViewUrl] = useState(false);
   const [activeTab, setActiveTab] = useState('summary');
@@ -212,18 +215,26 @@ export default function ContentPanel({ headerActions }) {
               exact passage.
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-              {!fileSlotsUsed && (
-                <Button onClick={() => document.getElementById('file-upload')?.click()}>
-                  <Upload /> Upload a file
+              {creditsExhausted ? (
+                <Button onClick={() => openCredits(true)}>
+                  <ZapOff /> View credits
                 </Button>
+              ) : (
+                !fileSlotsUsed && (
+                  <Button onClick={() => document.getElementById('file-upload')?.click()}>
+                    <Upload /> Upload a file
+                  </Button>
+                )
               )}
               <Button variant="outline" onClick={() => setShowTutorial(true)}>
                 <CircleHelp /> How it works
               </Button>
             </div>
-            {fileSlotsUsed && (
+            {(creditsExhausted || fileSlotsUsed) && (
               <p className="mx-auto mt-3 max-w-sm text-xs text-muted-foreground">
-                You&apos;ve used your free-trial file upload. You can still paste notes from the Sources panel.
+                {creditsExhausted
+                  ? "You're out of credits, so new sources are paused. You can still read what you've added."
+                  : "You've used your free-trial file upload. You can still paste notes from the Sources panel."}
               </p>
             )}
             <div className="mt-10 grid gap-3 text-left sm:grid-cols-3">

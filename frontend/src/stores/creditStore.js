@@ -9,7 +9,7 @@ import { axiosInstance } from '../lib/axios';
  * which the other stores route through `handleCreditError`.
  */
 export const useCreditStore = create((set, get) => ({
-  credits: null, // { granted, balance, spent, exhausted, urlSources: { used, max } }
+  credits: null, // { granted, balance, spent, exhausted, urlSources: { used, max }, fileSources: { used, max } }
   pricing: null,
   transactions: [],
   isLoading: false,
