@@ -18,8 +18,11 @@ export const CREDIT_MICROS = num(process.env.CREDIT_MICROS, 1000);
 export const toMicros = (credits) => Math.round(credits * CREDIT_MICROS);
 export const toCredits = (micros) => Math.round((micros / CREDIT_MICROS) * 100) / 100;
 
-/** Credits every new account starts with (about 10 rupees of model usage). */
-export const STARTING_CREDITS = num(process.env.CREDITS_STARTING, 100);
+/**
+ * Credits every new account starts with. Until payments exist this is a trial: enough for one
+ * typical file (~5-10 credits to embed + ~3 for its summary) and 3-4 chat answers (~5-6 each).
+ */
+export const STARTING_CREDITS = num(process.env.CREDITS_STARTING, 35);
 
 /** Safety multiplier on measured cost: covers FX drift, retries and the background jobs. */
 export const COST_MARKUP = num(process.env.CREDITS_MARKUP, 1.2);

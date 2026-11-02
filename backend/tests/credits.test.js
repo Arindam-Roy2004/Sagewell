@@ -45,9 +45,13 @@ describe("pricing", () => {
     expect(credits).toBeLessThan(PRICING.chatReserve);
   });
 
-  test("a new account can afford some of everything", () => {
-    expect(STARTING_CREDITS).toBeGreaterThan(PRICING.chatReserve * 5);
-    expect(toCredits(ingestCostMicros(100_000))).toBeLessThan(STARTING_CREDITS / 4);
+  test("the trial covers one typical file and a few answers", () => {
+    const answer = llmCostMicros("deepseek/deepseek-v4-flash", 6000, 1000) + 4 * llmCostMicros("deepseek/deepseek-v4-flash", 2000, 200);
+    const answerCredits = toCredits(answer) + PRICING.chatOverhead;
+    // A ~30 page PDF is about 100k characters.
+    const fileCredits = toCredits(ingestCostMicros(100_000));
+    expect(fileCredits + 3 * answerCredits).toBeLessThan(STARTING_CREDITS);
+    expect(fileCredits + 4 * answerCredits).toBeLessThan(STARTING_CREDITS);
   });
 
   test("ingest estimate grows with document size and adds the link fee", () => {
