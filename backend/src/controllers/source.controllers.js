@@ -16,10 +16,13 @@ import {
   canAfford,
   claimUrlSlot,
   releaseUrlSlot,
+  claimFileSlot,
+  releaseFileSlot,
   refundSource,
 } from "../../shared/libs/credits.js";
 import { PRICING, LIMITS, toMicros, ingestCostMicros } from "../../shared/libs/pricing.js";
 import { sendInsufficientCredits } from "../middlewares/credits.middlewares.js";
+import { userIsAdmin } from "../middlewares/auth.middlewares.js";
 
 const sourceQueue = new Queue("process-source", {
   connection: getSharedRedisClient(),
@@ -32,6 +35,13 @@ const deleteSourceQueue = new Queue("delete-source", {
 });
 
 const presignedUrlCache = new Map();
+
+const fileLimitMessage = () =>
+  `Each account can upload ${LIMITS.maxFileSources} file${LIMITS.maxFileSources === 1 ? "" : "s"} during the free trial.`;
+
+function sendFileLimitReached(res) {
+  return res.status(403).json({ success: false, code: "FILE_LIMIT_REACHED", message: fileLimitMessage() });
+}
 
 // Undoes a credit hold when the request fails after it was taken. Once a source row exists
 // the shared refund path owns the hold (it is idempotent); before that, return it directly.
@@ -274,7 +284,10 @@ export const getPresign = async (req, res) => {
       });
     }
 
-    // Fail before the upload starts if the account can't pay for processing.
+    // Fail before the upload starts if the account has used its file slots or can't pay.
+    if (!userIsAdmin(req.user) && (req.user.usage?.fileSources ?? 0) >= LIMITS.maxFileSources) {
+      return sendFileLimitReached(res);
+    }
     if (!(await canAfford(userId, toMicros(PRICING.fileReserve)))) {
       return sendInsufficientCredits(res, userId, "You don't have enough credits to add a file.");
     }
@@ -375,21 +388,29 @@ export const confirmUpload = async (req, res) => {
     // Only the first confirm of an upload queues it and takes a credit hold; a repeat is a no-op.
     // The status flip is atomic, so two concurrent confirms can't both charge and queue.
     if (source.status === "uploading") {
+      // The file slot is taken here, when the upload is queued; a failed file gives it back.
+      const fileSlot = !userIsAdmin(req.user);
+      if (fileSlot && !(await claimFileSlot(userId))) {
+        return sendFileLimitReached(res);
+      }
       const held = toMicros(PRICING.fileReserve);
       if (!(await reserve(userId, held)).ok) {
+        if (fileSlot) await releaseFileSlot(userId);
         return sendInsufficientCredits(res, userId, "You don't have enough credits to process this file.");
       }
       const claimed = await Source.findOneAndUpdate(
         { _id: source._id, status: "uploading" },
-        { $set: { status: "queued", credit: { reserved: held, settled: false } } },
+        { $set: { status: "queued", credit: { reserved: held, settled: false, fileSlot } } },
         { new: true },
       ).catch(async (error) => {
         await adjust(userId, -held);
+        if (fileSlot) await releaseFileSlot(userId);
         throw error;
       });
       source.status = "queued";
       if (!claimed) {
         await adjust(userId, -held); // another confirm got there first and queued it
+        if (fileSlot) await releaseFileSlot(userId);
       } else {
         try {
           await sourceQueue.add("process-source", {

@@ -54,6 +54,7 @@ const userSchema = new Schema(
     // Lifetime counters used by hard per-account limits.
     usage: {
       urlSources: { type: Number, default: 0 },
+      fileSources: { type: Number, default: 0 },
     },
   },
   {

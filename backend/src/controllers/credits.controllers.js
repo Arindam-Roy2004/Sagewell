@@ -14,7 +14,7 @@ export const getCredits = async (req, res) => {
     pricing: {
       chatAnswer: { from: PRICING.chatMinimum, to: PRICING.chatReserve },
       textSource: { from: Math.ceil(toCredits(ingestCostMicros(0))) },
-      fileSource: { from: Math.ceil(toCredits(ingestCostMicros(0))), maxMb: Math.round(LIMITS.maxFileBytes / 1024 / 1024) },
+      fileSource: { from: Math.ceil(toCredits(ingestCostMicros(0))), maxMb: Math.round(LIMITS.maxFileBytes / 1024 / 1024), limit: LIMITS.maxFileSources },
       linkSource: { from: Math.ceil(toCredits(ingestCostMicros(0, { link: true }))), limit: LIMITS.maxUrlSources },
     },
     transactions,

@@ -70,6 +70,8 @@ const sourceSchema = new Schema(
     credit: {
       reserved: { type: Number, default: 0 },
       settled: { type: Boolean, default: false },
+      // True when this upload took one of the owner's file slots (returned if it fails).
+      fileSlot: { type: Boolean, default: false },
     },
   },
   {

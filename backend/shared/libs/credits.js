@@ -132,7 +132,7 @@ export async function settleSource(sourceId, actualMicros, label) {
   await settle(source.userId, source.credit?.reserved || 0, actualMicros, { kind: "source", label });
 }
 
-/** Worker failed: give the whole hold back, and the link slot if a link was using one. */
+/** Worker failed: give the whole hold back, and the link or file slot the source was using. */
 export async function refundSource(sourceId, label = "Source failed, credits returned") {
   const source = await closeSource(sourceId);
   if (!source) return;
@@ -142,6 +142,7 @@ export async function refundSource(sourceId, label = "Source failed, credits ret
     await logTransaction(source.userId, "refund", -reserved, label);
   }
   if (source.type === "link") await releaseUrlSlot(source.userId);
+  if (source.credit?.fileSlot) await releaseFileSlot(source.userId);
 }
 
 /** Raises a source's hold to `neededMicros` once its real size is known. False if unaffordable. */
@@ -173,6 +174,23 @@ export async function releaseUrlSlot(userId) {
   await User.updateOne({ _id: userId, "usage.urlSources": { $gt: 0 } }, { $inc: { "usage.urlSources": -1 } });
 }
 
+// ── File slots (hard cap on uploaded files per account) ──────────────────────────────────
+export async function claimFileSlot(userId) {
+  const claimed = await User.findOneAndUpdate(
+    {
+      _id: userId,
+      $or: [{ "usage.fileSources": { $exists: false } }, { "usage.fileSources": { $lt: LIMITS.maxFileSources } }],
+    },
+    { $inc: { "usage.fileSources": 1 } },
+    { projection: { _id: 1 } },
+  ).lean();
+  return Boolean(claimed);
+}
+
+export async function releaseFileSlot(userId) {
+  await User.updateOne({ _id: userId, "usage.fileSources": { $gt: 0 } }, { $inc: { "usage.fileSources": -1 } });
+}
+
 // ── Reading ───────────────────────────────────────────────────────────────────────────────
 /** The shape the frontend consumes. Everything is in credits, never micros. */
 export function creditSummary(user) {
@@ -187,6 +205,7 @@ export function creditSummary(user) {
     // Below the minimum for one answer there is nothing useful left to do.
     exhausted: balance < toMicros(PRICING.chatMinimum),
     urlSources: { used: user?.usage?.urlSources ?? 0, max: LIMITS.maxUrlSources },
+    fileSources: { used: user?.usage?.fileSources ?? 0, max: LIMITS.maxFileSources },
   };
 }
 

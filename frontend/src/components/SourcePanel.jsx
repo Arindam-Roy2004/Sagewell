@@ -113,6 +113,7 @@ export default function SourcePanel({ headerActions }) {
   const credits = useCreditStore((s) => s.credits);
   const pricing = useCreditStore((s) => s.pricing);
   const linkSlotsUsed = credits ? credits.urlSources.used >= credits.urlSources.max : false;
+  const fileSlotsUsed = credits?.fileSources ? credits.fileSources.used >= credits.fileSources.max : false;
   const maxFileMb = pricing?.fileSource.maxMb ?? 20;
   const fromCost = (key) => pricing?.[key]?.from ?? '…';
 
@@ -215,7 +216,7 @@ export default function SourcePanel({ headerActions }) {
   const canSubmit =
     (activeInput === 'text' && textInput.trim()) ||
     (activeInput === 'url' && urlInput.trim() && !linkSlotsUsed) ||
-    (activeInput === 'upload' && file);
+    (activeInput === 'upload' && file && !fileSlotsUsed);
   const submitLabel = activeInput === 'text' ? 'Add text' : activeInput === 'url' ? 'Add link' : 'Upload file';
   const onSubmit = activeInput === 'text' ? handleTextSubmit : activeInput === 'url' ? handleUrlSubmit : handleFileSubmit;
 
@@ -561,10 +562,17 @@ export default function SourcePanel({ headerActions }) {
                     </span>
                     <p className="mt-3 text-sm font-medium text-foreground">Drop a file here, or click to browse</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">PDF, Word (DOCX), CSV or TXT · up to {maxFileMb} MB</p>
-                    <CostHint className="mt-3">Costs from {fromCost('fileSource')} credits, more for longer documents.</CostHint>
+                    {!fileSlotsUsed && (
+                      <CostHint className="mt-3">Costs from {fromCost('fileSource')} credits, more for longer documents.</CostHint>
+                    )}
                   </>
                 )}
               </div>
+            )}
+            {activeInput === 'upload' && fileSlotsUsed && (
+              <p className="mt-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground">
+                You&apos;ve used your file upload for the free trial. You can still paste text.
+              </p>
             )}
 
             {activeInput === 'url' && (

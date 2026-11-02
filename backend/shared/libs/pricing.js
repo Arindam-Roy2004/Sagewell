@@ -72,6 +72,8 @@ export const PRICING = {
 
 export const LIMITS = {
   maxUrlSources: num(process.env.MAX_URL_SOURCES, 1),
+  // Uploaded files per account (admins are exempt). Failed files give their slot back.
+  maxFileSources: num(process.env.MAX_FILE_SOURCES, 1),
   maxFileBytes: num(process.env.MAX_FILE_MB, 20) * 1024 * 1024,
   maxPastedChars: num(process.env.MAX_PASTED_CHARS, 100_000),
   maxSourceChars: num(process.env.MAX_SOURCE_CHARS, 500_000),

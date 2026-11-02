@@ -37,7 +37,12 @@ function costRows(pricing, credits) {
   return [
     { icon: MessageSquare, label: 'Ask a question', hint: 'Depends on how much it reads', cost: `${pricing.chatAnswer.from}–${pricing.chatAnswer.to}` },
     { icon: NotebookPen, label: 'Add pasted text', hint: 'Grows with length', cost: `from ${pricing.textSource.from}` },
-    { icon: CloudUpload, label: 'Upload a file', hint: `Up to ${pricing.fileSource.maxMb} MB`, cost: `from ${pricing.fileSource.from}` },
+    {
+      icon: CloudUpload,
+      label: 'Upload a file',
+      hint: `Up to ${pricing.fileSource.maxMb} MB · ${credits.fileSources.used} of ${credits.fileSources.max} used`,
+      cost: `from ${pricing.fileSource.from}`,
+    },
     {
       icon: Link2,
       label: 'Add a web link',
@@ -81,9 +86,10 @@ export default function CreditsDialog() {
             </Badge>
           </div>
           <CreditBar credits={credits} className="mt-4" />
-          <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Stat label="Used" value={formatCredits(credits.spent)} />
             <Stat label="Left" value={formatCredits(credits.balance)} />
+            <Stat label="Files" value={`${credits.fileSources.used}/${credits.fileSources.max}`} />
             <Stat label="Web links" value={`${credits.urlSources.used}/${credits.urlSources.max}`} />
           </div>
         </div>
