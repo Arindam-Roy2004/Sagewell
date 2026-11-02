@@ -26,6 +26,7 @@ import { useSourceStore } from '../stores/sourceStore';
 import { axiosInstance } from '../lib/axios';
 import { getSourceMeta, getSourceName, describeSourceDeletion } from './workspace/source-meta';
 import { useChatStore } from '../stores/chatStore';
+import { useCreditStore } from '../stores/creditStore';
 import { SourceIcon, SourceStatus } from './workspace/source-badges';
 
 const STEPS = [
@@ -69,6 +70,8 @@ function Placeholder({ icon: Icon, title, text, children, tone = "muted" }) {
 
 export default function ContentPanel({ headerActions }) {
   const { sources, selectedSource, getViewUrl, citationJump, deleteSource } = useSourceStore();
+  const fileSources = useCreditStore((s) => s.credits?.fileSources);
+  const fileSlotsUsed = fileSources ? fileSources.used >= fileSources.max : false;
   const getSourceDeletionImpact = useChatStore((s) => s.getSourceDeletionImpact);
   const [isLoadingViewUrl, setIsLoadingViewUrl] = useState(false);
   const [activeTab, setActiveTab] = useState('summary');
@@ -209,13 +212,20 @@ export default function ContentPanel({ headerActions }) {
               exact passage.
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-              <Button onClick={() => document.getElementById('file-upload')?.click()}>
-                <Upload /> Upload a file
-              </Button>
+              {!fileSlotsUsed && (
+                <Button onClick={() => document.getElementById('file-upload')?.click()}>
+                  <Upload /> Upload a file
+                </Button>
+              )}
               <Button variant="outline" onClick={() => setShowTutorial(true)}>
                 <CircleHelp /> How it works
               </Button>
             </div>
+            {fileSlotsUsed && (
+              <p className="mx-auto mt-3 max-w-sm text-xs text-muted-foreground">
+                You&apos;ve used your free-trial file upload. You can still paste notes from the Sources panel.
+              </p>
+            )}
             <div className="mt-10 grid gap-3 text-left sm:grid-cols-3">
               {STEPS.map(({ icon: Icon, title }, i) => (
                 <div key={title} className="rounded-lg border border-border bg-background p-3 shadow-xs">

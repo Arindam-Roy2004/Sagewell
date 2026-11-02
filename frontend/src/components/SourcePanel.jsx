@@ -221,24 +221,25 @@ export default function SourcePanel({ headerActions }) {
   const onSubmit = activeInput === 'text' ? handleTextSubmit : activeInput === 'url' ? handleUrlSubmit : handleFileSubmit;
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    // @container: the header and empty state adapt to the panel's own (draggable) width.
+    <div className="@container flex h-full flex-col bg-background">
       {/* Always mounted: the content panel's empty state clicks this input directly. */}
       <input type="file" id="file-upload" className="hidden" onChange={handleFileChange} accept={ALLOWED_EXTENSIONS.join(',')} />
 
       {/* Header */}
       <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border pr-2 pl-4">
         <div className="flex min-w-0 items-center gap-2">
-          <Library className="size-4 text-muted-foreground" />
-          <h2 className="text-sm font-medium text-foreground">Sources</h2>
+          <Library className="size-4 shrink-0 text-muted-foreground @max-[16rem]:hidden" />
+          <h2 className="truncate text-sm font-medium text-foreground">Sources</h2>
           {sources.length > 0 && (
-            <Badge variant="muted" size="sm" className="tabular-nums">
+            <Badge variant="muted" size="sm" className="shrink-0 tabular-nums">
               {sources.length}
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          <Button size="xs" variant="outline" onClick={() => openAdd('text')}>
-            <Plus /> Add
+        <div className="flex shrink-0 items-center gap-1">
+          <Button size="xs" variant="outline" onClick={() => openAdd('text')} aria-label="Add a source">
+            <Plus /> <span className="@max-[16rem]:sr-only">Add</span>
           </Button>
           {headerActions}
         </div>
@@ -425,7 +426,7 @@ export default function SourcePanel({ headerActions }) {
               if (e.dataTransfer.files?.[0]) openAdd('upload');
             }}
             className={cn(
-              'flex min-h-[360px] flex-1 flex-col items-center justify-center rounded-lg border border-dashed px-5 py-8 text-center transition-colors',
+              'flex min-h-[360px] flex-1 flex-col items-center justify-center rounded-lg border border-dashed px-3 py-8 text-center transition-colors',
               isDragging ? 'border-foreground/40 bg-accent' : 'border-border'
             )}
           >
@@ -433,23 +434,31 @@ export default function SourcePanel({ headerActions }) {
               <Library className="size-5 text-muted-foreground" />
             </span>
             <p className="mt-4 text-sm font-semibold text-foreground">Add your first source</p>
-            <p className="mt-1 max-w-[230px] text-xs leading-relaxed text-muted-foreground">
-              Drop a file here, or choose how you'd like to add one.
+            <p className="mt-1 max-w-[230px] text-xs leading-relaxed text-balance text-muted-foreground">
+              {fileSlotsUsed ? 'Paste some notes or add a web page to get started.' : "Drop a file here, or choose how you'd like to add one."}
             </p>
 
             <div className="mt-5 grid w-full max-w-[240px] gap-2">
-              <Button size="sm" onClick={() => document.getElementById('file-upload')?.click()}>
-                <CloudUpload /> Upload a file
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => openAdd('text')}>
+              {!fileSlotsUsed && (
+                <Button size="sm" onClick={() => document.getElementById('file-upload')?.click()}>
+                  <CloudUpload /> Upload a file
+                </Button>
+              )}
+              <Button size="sm" variant={fileSlotsUsed ? 'default' : 'outline'} onClick={() => openAdd('text')}>
                 <NotebookPen /> Paste text
               </Button>
-              <Button size="sm" variant="outline" onClick={() => openAdd('url')}>
-                <Link2 /> Add a web page
-              </Button>
+              {!linkSlotsUsed && (
+                <Button size="sm" variant="outline" onClick={() => openAdd('url')}>
+                  <Link2 /> Add a web page
+                </Button>
+              )}
             </div>
 
-            <p className="mt-5 text-[11px] text-muted-foreground">PDF, Word, CSV or TXT · up to 20 MB</p>
+            <p className="mt-5 text-[11px] text-balance text-muted-foreground">
+              {fileSlotsUsed
+                ? "You've used your free-trial file upload."
+                : `PDF, Word, CSV or TXT · up to ${maxFileMb} MB`}
+            </p>
           </div>
         )}
 
