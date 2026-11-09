@@ -7,6 +7,9 @@ export const ACCOUNT_BLOCKED_MESSAGE = "This account has been blocked. Contact s
 
 export const isLoggedIn = async (req, res, next) => {
   try {
+    // Bearer header only. A cookie is sent by the browser automatically, even on requests a
+    // different website triggers, so accepting one here would allow cross-site request
+    // forgery (CSRF). The Authorization header can only be set by our own frontend code.
     let token;
 
     if (
@@ -14,9 +17,6 @@ export const isLoggedIn = async (req, res, next) => {
       req.headers.authorization.startsWith("Bearer ")
     ) {
       token = req.headers.authorization.split(" ")[1];
-    } else if (req.cookies?.token) {
-      // Fallback to cookie for same-origin requests
-      token = req.cookies.token;
     }
 
     if (!token) {

@@ -73,8 +73,9 @@ app.use(
 );
 
 app.use(cookieParser());
+// JSON only. No urlencoded parser: the API never takes HTML-form posts, and accepting them
+// is what lets a plain cross-site <form> submit pass body validation.
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // Structured per-request logging with an auto-generated request id (req.id).
 // Skip the noisy healthcheck so uptime pings don't flood the logs.

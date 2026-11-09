@@ -1,10 +1,12 @@
 import User from "../../shared/models/user.model.js";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import dotenv from "dotenv";
 import { OAuth2Client } from "google-auth-library";
 import { creditSummary } from "../../shared/libs/credits.js";
 import { recordSignIn } from "../../shared/libs/activity.js";
 import { userIsAdmin, ACCOUNT_BLOCKED_MESSAGE } from "../middlewares/auth.middlewares.js";
+import { revokeRefreshToken, isRefreshTokenRevoked, ROTATION_GRACE_MS } from "../utils/tokenRevocation.js";
 
 dotenv.config();
 
@@ -12,6 +14,9 @@ dotenv.config();
 // Short-lived ACCESS token (Bearer, in localStorage) + long-lived REFRESH token
 // (httpOnly cookie). The access token carries type:"access"; the refresh token
 // type:"refresh". isLoggedIn rejects refresh tokens so they can't be used as access.
+// The access token is NOT set as a cookie: isLoggedIn reads only the Bearer header, so a
+// cookie would add nothing but CSRF exposure. Each refresh token has a random jti so logout
+// can revoke it (see utils/tokenRevocation.js).
 const ACCESS_TTL = process.env.ACCESS_TTL || "1d";
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -19,7 +24,9 @@ const signAccessToken = (userId) =>
   jwt.sign({ id: userId, type: "access" }, process.env.JWTSECRET_KEY, { expiresIn: ACCESS_TTL });
 
 const signRefreshToken = (userId) =>
-  jwt.sign({ id: userId, type: "refresh" }, process.env.JWTSECRET_KEY, { expiresIn: "30d" });
+  jwt.sign({ id: userId, type: "refresh", jti: crypto.randomUUID() }, process.env.JWTSECRET_KEY, {
+    expiresIn: "30d",
+  });
 
 // Cookie config. In production the frontend and API live on different domains, so cookies must
 // be "Secure" + SameSite=None (HTTPS only). On http://localhost those settings are rejected by
@@ -33,15 +40,25 @@ const baseCookieOptions = {
 };
 // maxAge (not a fixed expires date) so the lifetime is counted from each login, not from server start.
 const refreshCookieOptions = { ...baseCookieOptions, maxAge: REFRESH_TTL_MS };
-const accessCookieOptions = { ...baseCookieOptions, maxAge: 24 * 60 * 60 * 1000 };
 
-// Issues both tokens, sets cookies, and returns the access token to send in the body.
+// Issues both tokens, sets the refresh cookie, and returns the access token to send in the body.
 const issueSession = (res, userId) => {
   const accessToken = signAccessToken(userId);
   const refreshToken = signRefreshToken(userId);
-  res.cookie("token", accessToken, accessCookieOptions);
+  // Clear the legacy access-token cookie older versions set; nothing reads it any more.
+  res.clearCookie("token", baseCookieOptions);
   res.cookie("refreshToken", refreshToken, refreshCookieOptions);
   return accessToken;
+};
+
+/** Verifies a JWT without throwing; returns the payload or null. */
+const verifyQuietly = (token, options) => {
+  if (!token) return null;
+  try {
+    return jwt.verify(token, process.env.JWTSECRET_KEY, options);
+  } catch {
+    return null;
+  }
 };
 
 // ── POST /auth/google — sign in / sign up with a Google ID token ──────────────
@@ -137,6 +154,24 @@ export const getMe = async (req, res) => {
 };
 export const logout = async (req, res) => {
   try {
+    // Revoke this browser's refresh token. Only when the request also carries this user's
+    // access token: the Bearer header can't be forged cross-site, so another website can't
+    // trigger a revocation (forced sign-out) just by making the browser hit this URL. The
+    // access token may be expired; its signature still proves it was ours.
+    const refresh = verifyQuietly(req.cookies?.refreshToken);
+    const bearer = req.headers.authorization?.startsWith("Bearer ")
+      ? verifyQuietly(req.headers.authorization.slice(7), { ignoreExpiration: true })
+      : null;
+    if (
+      refresh?.type === "refresh" &&
+      refresh.jti &&
+      bearer?.type !== "refresh" &&
+      bearer?.id &&
+      String(bearer.id) === String(refresh.id)
+    ) {
+      await revokeRefreshToken(refresh.jti, refresh.exp);
+    }
+
     const cookiesOption = baseCookieOptions;
     res.clearCookie("token", cookiesOption);
     res.clearCookie("token", { path: "/" });
@@ -175,6 +210,9 @@ export const refreshAccessToken = async (req, res) => {
     if (decoded.type !== "refresh") {
       return res.status(401).json({ success: false, message: "Invalid token type" });
     }
+    if (await isRefreshTokenRevoked(decoded.jti)) {
+      return res.status(401).json({ success: false, message: "Session has ended. Please sign in again." });
+    }
 
     const user = await User.findById(decoded.id).select("-password");
     if (!user) {
@@ -184,8 +222,10 @@ export const refreshAccessToken = async (req, res) => {
       return res.status(401).json({ success: false, message: ACCOUNT_BLOCKED_MESSAGE });
     }
 
-    // Rotate: issue a fresh access token (and refresh cookie) on every refresh.
+    // Rotate: issue a fresh access token (and refresh cookie) on every refresh, and retire the
+    // refresh token just used once the grace period for concurrent tabs has passed.
     const token = issueSession(res, user._id);
+    await revokeRefreshToken(decoded.jti, decoded.exp, { graceMs: ROTATION_GRACE_MS });
 
     return res.status(200).json({
       success: true,
