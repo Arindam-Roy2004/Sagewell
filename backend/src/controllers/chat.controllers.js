@@ -47,6 +47,9 @@ Response style (follow consistently in every answer):
 // ─────────────────────────────────────────────────────────────────────────────
 const activeStreams = new Map();
 
+// Abort reason used when a chat is being deleted: the stream stops and saves nothing.
+const CHAT_DELETED = "chat-deleted";
+
 /**
  * Stops any in-flight answer streams for these chats (e.g. because the chats are being
  * deleted along with their source), so a stream never writes to a deleted document.
@@ -54,10 +57,37 @@ const activeStreams = new Map();
 export function abortChatStreams(userId, chatIds) {
   for (const chatId of chatIds) {
     const streamKey = `${userId}:${chatId}`;
-    activeStreams.get(streamKey)?.abort();
+    activeStreams.get(streamKey)?.abort(CHAT_DELETED);
     activeStreams.delete(streamKey);
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Server-owned partial answers
+//
+// When generation is stopped, the server saves the text IT streamed (never text sent back by
+// the client), so a user cannot write arbitrary "assistant" messages into a chat. While a
+// stream's messages are being saved, its promise sits here so /save-partial can wait for it.
+// ─────────────────────────────────────────────────────────────────────────────
+const pendingPersists = new Map();
+const PARTIAL_SAVE_WAIT_MS = 10_000;
+
+/** Registers a stream's save-in-progress; returns the function that marks it finished. */
+function trackPersist(streamKey) {
+  let resolve;
+  const promise = new Promise((r) => {
+    resolve = r;
+  });
+  pendingPersists.set(streamKey, promise);
+  return () => {
+    if (pendingPersists.get(streamKey) === promise) pendingPersists.delete(streamKey);
+    resolve();
+  };
+}
+
+/** True when a stopped stream should keep what it generated so far. */
+const shouldSavePartial = (abortController, text) =>
+  abortController.signal.reason !== CHAT_DELETED && Boolean(text && text.trim());
 
 /**
  * Builds the full prompt from memory, retrieval, and conversation context.
@@ -214,9 +244,11 @@ ${message}
  * @param {object} res - Express response object
  * @param {string} prompt - Full prompt to send to agent
  * @param {AbortController} abortController - Controller for cancellation
+ * @param {{ text: string }} [progress] - Updated as tokens arrive, so the caller still has the
+ *   partial text if the stream throws (e.g. on abort)
  * @returns {Promise<string>} The full accumulated response text
  */
-async function streamAgentResponse(res, prompt, abortController) {
+async function streamAgentResponse(res, prompt, abortController, progress = { text: "" }) {
   let fullText = "";
 
   // Run the agent in streaming mode, passing the AbortSignal
@@ -243,6 +275,7 @@ async function streamAgentResponse(res, prompt, abortController) {
 
     if (token) {
       fullText += token;
+      progress.text = fullText;
       res.write(`data: ${JSON.stringify({ type: "token", content: token })}\n\n`);
     }
   }
@@ -402,6 +435,10 @@ export const createMessage = async (req, res) => {
   let streamKey = null;
   let trace = null;
   let fullText = "";
+  const progress = { text: "" }; // tokens streamed so far (survives an abort)
+  let persistExchange = null; // saves the user message + an answer; set once the prompt is built
+  let persisted = false;
+  let releasePersist = null;
 
   try {
     const userId = req.user._id;
@@ -442,6 +479,7 @@ export const createMessage = async (req, res) => {
     // ── Register abort on client disconnect ──────────────────────────────
     streamKey = `${userId}:${chatId}`;
     activeStreams.set(streamKey, abortController);
+    releasePersist = trackPersist(streamKey);
 
     req.on("close", () => {
       abortController.abort();
@@ -469,45 +507,51 @@ export const createMessage = async (req, res) => {
       })}\n\n`
     );
 
+    // ── Persist messages to DB atomically (also used for a stopped answer) ──
+    persistExchange = async (answerText) => {
+      const userMsg = { role: "user", content: message };
+      const assistantMsg = { role: "assistant", content: answerText, citations, traceId: trace?.traceId || null };
+
+      // Auto-title the chat from the first user message so the sidebar isn't full of
+      // "Untitled Dialogue". Only on the very first exchange, and only if untitled.
+      const isFirstExchange = (chat.messages?.length || 0) === 0;
+      const setFields = { updatedAt: new Date() };
+      if (isFirstExchange && !chat.title) {
+        const derived = message.trim().replace(/\s+/g, " ").slice(0, 60);
+        setFields.title = derived + (message.trim().length > 60 ? "…" : "");
+        chat.title = setFields.title;
+      }
+
+      const existed = await Chat.findByIdAndUpdate(chat._id, {
+        $push: { messages: { $each: [userMsg, assistantMsg] } },
+        $set: setFields,
+      });
+      persisted = true;
+      if (!existed) return; // chat was deleted meanwhile; nothing else to do
+
+      chat.messages.push(userMsg);
+      chat.messages.push(assistantMsg);
+
+      // ── Fire-and-forget background workers ─────────────────────────────
+      enqueueMemoryExtractionIfNeeded(chat, userId).catch((err) =>
+        console.error("Failed to enqueue memory extraction:", err)
+      );
+      enqueueChatSummaryIfNeeded(chat, userId).catch((err) =>
+        console.error("Failed to enqueue chat summary:", err)
+      );
+    };
+
     // ── Stream the agent response token-by-token ─────────────────────────
     const tGenStart = Date.now();
-    fullText = await streamAgentResponse(res, prompt, abortController);
+    fullText = await streamAgentResponse(res, prompt, abortController, progress);
     trace.setStepDuration("generationMs", Date.now() - tGenStart);
 
     const refinedRes = fullText.trim();
 
-    // ── Persist messages to DB atomically ────────────────────────────────
-    const userMsg = { role: "user", content: message };
-    const assistantMsg = { role: "assistant", content: refinedRes, citations, traceId: trace?.traceId || null };
-
-    // Auto-title the chat from the first user message so the sidebar isn't full of
-    // "Untitled Dialogue". Only on the very first exchange, and only if untitled.
-    const isFirstExchange = (chat.messages?.length || 0) === 0;
-    const setFields = { updatedAt: new Date() };
-    if (isFirstExchange && !chat.title) {
-      const derived = message.trim().replace(/\s+/g, " ").slice(0, 60);
-      setFields.title = derived + (message.trim().length > 60 ? "…" : "");
-      chat.title = setFields.title;
-    }
-
-    chat.messages.push(userMsg);
-    chat.messages.push(assistantMsg);
-
-    await Chat.findByIdAndUpdate(chat._id, {
-      $push: { messages: { $each: [userMsg, assistantMsg] } },
-      $set: setFields,
-    });
+    await persistExchange(refinedRes);
 
     // ── Asynchronously complete execution trace in background ────────────
     trace.complete({ response: refinedRes });
-
-    // ── Fire-and-forget background workers ───────────────────────────────
-    enqueueMemoryExtractionIfNeeded(chat, userId).catch((err) =>
-      console.error("Failed to enqueue memory extraction:", err)
-    );
-    enqueueChatSummaryIfNeeded(chat, userId).catch((err) =>
-      console.error("Failed to enqueue chat summary:", err)
-    );
 
     // ── Send completion event and end stream ─────────────────────────────
     res.write(
@@ -522,11 +566,19 @@ export const createMessage = async (req, res) => {
     res.end();
   } catch (error) {
     if (trace) {
-      trace.complete({ response: fullText || "", error });
+      trace.complete({ response: fullText || progress.text || "", error });
     }
 
     // If the stream was aborted intentionally (stop generation), send a clean stop event
     if (abortController.signal.aborted) {
+      // Keep what the server itself generated before the stop.
+      if (!persisted && persistExchange && shouldSavePartial(abortController, progress.text)) {
+        try {
+          await persistExchange(progress.text.trim());
+        } catch (saveError) {
+          console.error("❌ Failed to save partial answer:", saveError);
+        }
+      }
       try {
         res.write(
           `data: ${JSON.stringify({ type: "stopped", message: "Generation stopped by user" })}\n\n`
@@ -560,8 +612,9 @@ export const createMessage = async (req, res) => {
   } finally {
     // Cleanup: remove from active streams
     if (streamKey) {
-      activeStreams.delete(streamKey);
+      if (activeStreams.get(streamKey) === abortController) activeStreams.delete(streamKey);
     }
+    releasePersist?.();
   }
 };
 
@@ -616,6 +669,10 @@ export const regenerateMessage = async (req, res) => {
   let streamKey = null;
   let trace = null;
   let fullText = "";
+  const progress = { text: "" }; // tokens streamed so far (survives an abort)
+  let persistAnswer = null; // saves a regenerated answer; set once the prompt is built
+  let persisted = false;
+  let releasePersist = null;
 
   try {
     const userId = req.user._id;
@@ -680,6 +737,7 @@ export const regenerateMessage = async (req, res) => {
     // ── Register abort on client disconnect ──────────────────────────────
     streamKey = `${userId}:${chatId}`;
     activeStreams.set(streamKey, abortController);
+    releasePersist = trackPersist(streamKey);
 
     req.on("close", () => {
       abortController.abort();
@@ -708,32 +766,39 @@ export const regenerateMessage = async (req, res) => {
       })}\n\n`
     );
 
+    // ── Persist the new assistant message atomically (also used when stopped) ──
+    persistAnswer = async (answerText) => {
+      const assistantMsg = { role: "assistant", content: answerText, citations, traceId: trace?.traceId || null };
+
+      const existed = await Chat.findByIdAndUpdate(chat._id, {
+        $push: { messages: assistantMsg },
+        $set: { updatedAt: new Date() },
+      });
+      persisted = true;
+      if (!existed) return; // chat was deleted meanwhile; nothing else to do
+
+      chat.messages.push(assistantMsg);
+
+      // ── Fire-and-forget background workers ─────────────────────────────
+      enqueueMemoryExtractionIfNeeded(chat, userId).catch((err) =>
+        console.error("Failed to enqueue memory extraction:", err)
+      );
+      enqueueChatSummaryIfNeeded(chat, userId).catch((err) =>
+        console.error("Failed to enqueue chat summary:", err)
+      );
+    };
+
     // ── Stream the regenerated response ──────────────────────────────────
     const tGenStart = Date.now();
-    fullText = await streamAgentResponse(res, prompt, abortController);
+    fullText = await streamAgentResponse(res, prompt, abortController, progress);
     trace.setStepDuration("generationMs", Date.now() - tGenStart);
 
     const refinedRes = fullText.trim();
 
-    // ── Persist the new assistant message atomically ──────────────────────
-    const assistantMsg = { role: "assistant", content: refinedRes, citations, traceId: trace?.traceId || null };
-    chat.messages.push(assistantMsg);
-
-    await Chat.findByIdAndUpdate(chat._id, {
-      $push: { messages: assistantMsg },
-      $set: { updatedAt: new Date() },
-    });
+    await persistAnswer(refinedRes);
 
     // ── Asynchronously complete execution trace in background ────────────
     trace.complete({ response: refinedRes });
-
-    // ── Fire-and-forget background workers ───────────────────────────────
-    enqueueMemoryExtractionIfNeeded(chat, userId).catch((err) =>
-      console.error("Failed to enqueue memory extraction:", err)
-    );
-    enqueueChatSummaryIfNeeded(chat, userId).catch((err) =>
-      console.error("Failed to enqueue chat summary:", err)
-    );
 
     // ── Send completion event ────────────────────────────────────────────
     res.write(
@@ -748,10 +813,18 @@ export const regenerateMessage = async (req, res) => {
     res.end();
   } catch (error) {
     if (trace) {
-      trace.complete({ response: fullText || "", error });
+      trace.complete({ response: fullText || progress.text || "", error });
     }
 
     if (abortController.signal.aborted) {
+      // Keep what the server itself generated before the stop.
+      if (!persisted && persistAnswer && shouldSavePartial(abortController, progress.text)) {
+        try {
+          await persistAnswer(progress.text.trim());
+        } catch (saveError) {
+          console.error("❌ Failed to save partial answer:", saveError);
+        }
+      }
       try {
         res.write(
           `data: ${JSON.stringify({ type: "stopped", message: "Regeneration stopped by user" })}\n\n`
@@ -783,96 +856,53 @@ export const regenerateMessage = async (req, res) => {
     }
   } finally {
     if (streamKey) {
-      activeStreams.delete(streamKey);
+      if (activeStreams.get(streamKey) === abortController) activeStreams.delete(streamKey);
     }
+    releasePersist?.();
   }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /:chatId/save-partial — Save a partial response after stop
-// Allows the frontend to persist what was streamed before the user stopped.
+// POST /:chatId/save-partial — Return the chat after a stopped answer was saved
+//
+// The server saves a stopped answer itself (see createMessage/regenerateMessage), from the
+// text it generated. Any message content in the request body is ignored on purpose: trusting
+// it would let a client write arbitrary user/assistant messages into the chat for free. This
+// endpoint waits for that save to finish and returns the messages, which is what the client
+// uses to show the stopped answer.
 // ─────────────────────────────────────────────────────────────────────────────
 export const savePartialResponse = async (req, res) => {
   try {
     const userId = req.user._id;
     const { chatId } = req.params;
-    const { userMessage, partialResponse, citations } = req.body;
 
-    if (!userId || !chatId) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing userId or chatId",
-      });
+    const owned = await findChatOrFail(chatId, userId, res);
+    if (!owned) return;
+
+    const pending = pendingPersists.get(`${userId}:${chatId}`);
+    if (pending) {
+      let timer;
+      await Promise.race([
+        pending,
+        new Promise((resolve) => {
+          timer = setTimeout(resolve, PARTIAL_SAVE_WAIT_MS);
+        }),
+      ]);
+      clearTimeout(timer);
     }
 
-    if (!userMessage || !partialResponse) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing userMessage or partialResponse",
-      });
-    }
-
-    const chat = await findChatOrFail(chatId, userId, res);
-    if (!chat) return;
-
-    const msgsToPush = [];
-    const lastUserMsg = [...chat.messages].reverse().find((m) => m.role === "user");
-    if (!lastUserMsg || lastUserMsg.content !== userMessage) {
-      const uMsg = { role: "user", content: userMessage };
-      chat.messages.push(uMsg);
-      msgsToPush.push(uMsg);
-    }
-
-    const cleanCitations = Array.isArray(citations)
-      ? citations.map((c) => ({
-          sourceId:
-            c.sourceId && mongoose.Types.ObjectId.isValid(c.sourceId)
-              ? c.sourceId
-              : null,
-          originalFileName: c.originalFileName || "Document",
-          pageNumber: c.pageNumber || 1,
-          chunkId:
-            c.chunkId && mongoose.Types.ObjectId.isValid(c.chunkId)
-              ? c.chunkId
-              : null,
-          snippet: (c.snippet || "").slice(0, 200),
-        }))
-      : [];
-
-    const aMsg = {
-      role: "assistant",
-      content: partialResponse,
-      citations: cleanCitations,
-    };
-    chat.messages.push(aMsg);
-    msgsToPush.push(aMsg);
-
-    if (msgsToPush.length > 0) {
-      await Chat.findByIdAndUpdate(chat._id, {
-        $push: { messages: { $each: msgsToPush } },
-        $set: { updatedAt: new Date() },
-      });
-    }
-
-    // ── Fire-and-forget background workers ───────────────────────────────
-    enqueueMemoryExtractionIfNeeded(chat, userId).catch((err) =>
-      console.error("Failed to enqueue memory extraction:", err)
-    );
-    enqueueChatSummaryIfNeeded(chat, userId).catch((err) =>
-      console.error("Failed to enqueue chat summary:", err)
-    );
+    const chat = await Chat.findOne({ _id: owned._id, userId }).select("messages").lean();
 
     return res.status(200).json({
       success: true,
       message: "Partial response saved",
-      messages: chat.messages,
+      messages: chat?.messages || [],
     });
   } catch (error) {
     console.error("❌ Error in savePartialResponse:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to save partial response",
-      error: error.message,
+      message: "Internal error while saving partial response",
     });
   }
 };
@@ -967,7 +997,7 @@ export const deleteChat = async (req, res) => {
     const streamKey = `${userId}:${chatId}`;
     const controller = activeStreams.get(streamKey);
     if (controller) {
-      controller.abort();
+      controller.abort(CHAT_DELETED);
       activeStreams.delete(streamKey);
     }
 
