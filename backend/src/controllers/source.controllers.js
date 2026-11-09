@@ -36,6 +36,13 @@ const deleteSourceQueue = new Queue("delete-source", {
 
 const presignedUrlCache = new Map();
 
+// Upload URLs stay valid this long. Unconfirmed uploads older than that are dead and are
+// removed by the worker's stale-upload sweep (worker/processors/staleUploadSweeper.js).
+const UPLOAD_URL_TTL_SECONDS = 3600;
+// Unconfirmed uploads a (non-admin) account may have open at once. Without a cap, upload URLs
+// could be requested without limit, since the file slot is only taken at confirm time.
+const MAX_PENDING_UPLOADS = 5;
+
 const fileLimitMessage = () =>
   `Each account can upload ${LIMITS.maxFileSources} file${LIMITS.maxFileSources === 1 ? "" : "s"} during the free trial.`;
 
@@ -291,6 +298,19 @@ export const getPresign = async (req, res) => {
     if (!(await canAfford(userId, toMicros(PRICING.fileReserve)))) {
       return sendInsufficientCredits(res, userId, "You don't have enough credits to add a file.");
     }
+    if (!userIsAdmin(req.user)) {
+      const pendingUploads = await Source.countDocuments({
+        userId,
+        status: "uploading",
+        createdAt: { $gte: new Date(Date.now() - UPLOAD_URL_TTL_SECONDS * 1000) },
+      });
+      if (pendingUploads >= MAX_PENDING_UPLOADS) {
+        return res.status(429).json({
+          success: false,
+          message: "You have too many uploads in progress. Wait for them to finish, then try again.",
+        });
+      }
+    }
 
     let type;
     if (fileType === "application/pdf") {
@@ -320,14 +340,18 @@ export const getPresign = async (req, res) => {
       type,
     });
 
+    // ContentLength is part of the signature, so storage rejects an upload whose size differs
+    // from the size checked above. Without it, fileSize is only the client's word and any
+    // size could be uploaded.
     const putUrl = await getSignedUrl(
       s3,
       new PutObjectCommand({
         Bucket: process.env.S3_BUCKET,
         Key: key,
         ContentType: fileType,
+        ContentLength: fileSize,
       }),
-      { expiresIn: 3600 },
+      { expiresIn: UPLOAD_URL_TTL_SECONDS },
     );
 
     return res.status(200).json({

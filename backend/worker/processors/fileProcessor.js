@@ -5,17 +5,35 @@ import { CSVLoader } from "@langchain/community/document_loaders/fs/csv";
 import { TextLoader } from "langchain/document_loaders/fs/text";
 import { s3 } from "../../shared/libs/s3.js";
 import { Document } from "@langchain/core/documents";
+import { LIMITS } from "../../shared/libs/pricing.js";
 
-async function streamToBuffer(stream) {
+const tooLargeError = () =>
+  new Error(`This file is too large (the limit is ${Math.round(LIMITS.maxFileBytes / 1024 / 1024)}MB).`);
+
+/** Reads a stream into memory, refusing to buffer more than `maxBytes`. */
+async function streamToBuffer(stream, maxBytes) {
   const chunks = [];
+  let total = 0;
 
   for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buf.length;
+    if (total > maxBytes) {
+      stream.destroy?.();
+      throw tooLargeError();
+    }
+    chunks.push(buf);
   }
 
   return Buffer.concat(chunks);
 }
 
+/**
+ * Downloads an uploaded file, enforcing the upload size limit here too. Uploads are size-
+ * signed at presign time, but this is the last line of defence before the file is held in
+ * memory: an oversized object (e.g. uploaded with an older URL) must fail the source, not
+ * crash the shared worker.
+ */
 async function downloadFromS3(s3Key) {
   const command = new GetObjectCommand({
     Bucket: process.env.S3_BUCKET,
@@ -28,7 +46,12 @@ async function downloadFromS3(s3Key) {
     throw new Error(`S3 object has no body: ${s3Key}`);
   }
 
-  return streamToBuffer(data.Body);
+  if (Number(data.ContentLength) > LIMITS.maxFileBytes) {
+    data.Body.destroy?.();
+    throw tooLargeError();
+  }
+
+  return streamToBuffer(data.Body, LIMITS.maxFileBytes);
 }
 
 function resolveSourceType(mimeType) {

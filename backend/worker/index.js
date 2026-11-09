@@ -7,6 +7,7 @@ import { processSourceDeletion } from "./processors/deleteSourceProcessor.js";
 import { processChatSummary } from "./processors/chatSummaryProcessor.js";
 import { processMemoryExtraction } from "./processors/memoryProcessor.js";
 import { processTraceLogging } from "./processors/traceProcessor.js";
+import { startStaleUploadSweeper } from "./processors/staleUploadSweeper.js";
 import db from "../shared/libs/db.js";
 import { initQdrantIndexes } from "../shared/libs/qdrant.js";
 import { redisConfig } from "../shared/libs/redis.js";
@@ -128,10 +129,14 @@ traceWorker.on("failed", (job, err) => {
 const workers = [sourceWorker, deleteSourceWorker, chatSummaryWorker, memoryWorker, traceWorker];
 let shuttingDown = false;
 
+// Periodically removes uploads that were started but never confirmed.
+const stopStaleUploadSweeper = startStaleUploadSweeper();
+
 async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(`${signal} received: finishing active jobs, then exiting`);
+  stopStaleUploadSweeper();
   await Promise.allSettled(workers.map((w) => w.close()));
   await mongoose.disconnect().catch(() => {});
   process.exit(0);

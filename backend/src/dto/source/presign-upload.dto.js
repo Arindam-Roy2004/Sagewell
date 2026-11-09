@@ -8,6 +8,7 @@ export default class PresignUploadDto extends BaseDto {
     fileType: z.string().min(1, "File type is required"),
     fileSize: z
       .number({ invalid_type_error: "File size must be a number" })
+      .int("File size must be a whole number of bytes")
       .positive("File size must be positive"),
   });
 }
