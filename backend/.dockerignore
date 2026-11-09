@@ -9,3 +9,6 @@ docker-compose*.yml
 Dockerfile
 worker/Dockerfile
 worker/node_modules
+
+# Never bake secrets into the API image
+logs.htpasswd

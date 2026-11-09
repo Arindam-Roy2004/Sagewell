@@ -12,6 +12,8 @@ services:
     image: nginx:latest
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      # Basic-auth users for the log viewer (see nginx.conf). Not committed.
+      - ./logs.htpasswd:/etc/nginx/logs.htpasswd:ro
     depends_on:
       dozzle:
         condition: service_started

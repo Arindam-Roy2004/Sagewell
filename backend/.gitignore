@@ -2,3 +2,6 @@
 env 
 node_modules
 design-reference/
+
+# Log viewer basic-auth users (see nginx.conf)
+logs.htpasswd
