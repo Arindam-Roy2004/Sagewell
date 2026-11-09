@@ -1,5 +1,6 @@
 import "./env.js";
 import neo4j from "neo4j-driver";
+import { ENTITY_LABELS } from "./memoryGraph.js";
 
 let driverInstance = null;
 let warnedMissingCredentials = false;
@@ -91,6 +92,13 @@ export async function initNeo4jConstraints() {
       CREATE INDEX place_name_idx IF NOT EXISTS
       FOR (p:Place) ON (p.name)
     `);
+    // Memory entities are owned per user and merged on (userId, name) — see memoryGraph.js.
+    for (const label of ENTITY_LABELS) {
+      await executeCypher(`
+        CREATE INDEX entity_owner_${label.toLowerCase()}_idx IF NOT EXISTS
+        FOR (n:\`${label}\`) ON (n.userId, n.name)
+      `);
+    }
     console.log("🕸️ Neo4j indexes and constraints verified.");
   } catch (err) {
     console.warn("⚠️ Could not verify Neo4j constraints:", err.message);

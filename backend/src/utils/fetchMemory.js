@@ -2,6 +2,7 @@ import "dotenv/config";
 import { embeddings } from "../../shared/libs/embeddings.js";
 import { QdrantVectorStore } from "@langchain/qdrant";
 import { executeCypher } from "../../shared/libs/neo4j.js";
+import { USER_GRAPH_READ_CYPHER, describeGraphNode } from "../../shared/libs/memoryGraph.js";
 import User from "../../shared/models/user.model.js";
 import { typeSafeClient } from "../../shared/libs/typesafe.js";
 import { noul } from "@typesafe-ai/sdk";
@@ -108,14 +109,8 @@ export async function fetchOptimizedMemory(message, userId, initialFacts = null)
   // 1. Task A: Graph traversal query via Neo4j connection pool
   const graphTask = (async () => {
     try {
-      const { records } = await executeCypher(
-        `
-        MATCH (u:User {id: $userId})-[r*1..2]-(n)
-        RETURN u, r, n
-        LIMIT 25
-        `,
-        { userId: userIdStr }
-      );
+      // Only this user's own neighbours; never other users' nodes (see memoryGraph.js).
+      const { records } = await executeCypher(USER_GRAPH_READ_CYPHER, { userId: userIdStr });
 
       if (!records || records.length === 0) {
         return "No recorded graph relations.";
@@ -127,9 +122,8 @@ export async function fetchOptimizedMemory(message, userId, initialFacts = null)
         const node = record.get("n");
         if (node && rels && rels.length > 0) {
           const relTypes = rels.map((r) => r.type).join(" -> ");
-          const label = node.labels?.[0] || "Entity";
-          const props = Object.entries(node.properties || {})
-            .filter(([k]) => k !== "id")
+          const { label, properties } = describeGraphNode(node, userIdStr);
+          const props = Object.entries(properties)
             .map(([k, v]) => `${k}: '${v}'`)
             .join(", ");
           relations.push(`User -[${relTypes}]-> ${label} (${props})`);
