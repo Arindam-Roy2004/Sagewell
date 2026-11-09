@@ -2,7 +2,11 @@ import { Document } from "@langchain/core/documents";
 import { JSDOM, VirtualConsole } from "jsdom";
 import { Readability } from "@mozilla/readability";
 import TurndownService from "turndown";
-import { assertSafeUrl } from "../../shared/libs/urlGuard.js";
+import http from "http";
+import https from "https";
+import zlib from "zlib";
+import { assertSafeUrl, safeLookup } from "../../shared/libs/urlGuard.js";
+import { isContextDevConfigured, scrapeMarkdown } from "../../shared/libs/contextDev.js";
 
 const FETCH_TIMEOUT_MS = 45000; // large pages (e.g. a 1.4 MB Wikipedia article) can be slow
 const FETCH_ATTEMPTS = 2; // retry once on network errors / timeouts
@@ -32,6 +36,100 @@ turndown.addRule("altTextImages", {
   },
 });
 
+const tooLarge = () => new Error("This page is too large to process");
+
+/** Picks a decoder for the response's Content-Encoding (identity when absent or unknown). */
+function decoderFor(encoding) {
+  switch ((encoding || "").trim().toLowerCase()) {
+    case "gzip":
+    case "x-gzip":
+      return zlib.createGunzip();
+    case "deflate":
+      return zlib.createInflate();
+    case "br":
+      return zlib.createBrotliDecompress();
+    default:
+      return null;
+  }
+}
+
+/**
+ * One HTTP(S) GET, no redirect following. The socket connects through `safeLookup`, so the
+ * SSRF check runs on the exact IP we connect to; a DNS answer that changes after the early
+ * `assertSafeUrl` check (DNS rebinding) cannot reach an internal address.
+ *
+ * Resolves with { status, headers, body? }. The body (decompressed, capped at MAX_BYTES) is
+ * read only for a 2xx HTML/XML response; for anything else it is discarded.
+ */
+function requestOnce(url) {
+  const client = url.protocol === "https:" ? https : http;
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    };
+
+    const req = client.get(
+      url,
+      {
+        lookup: safeLookup,
+        headers: {
+          "User-Agent": USER_AGENT,
+          Accept: "text/html,application/xhtml+xml",
+          "Accept-Encoding": "gzip, deflate, br",
+        },
+      },
+      (res) => {
+        const status = res.statusCode || 0;
+        const headers = res.headers;
+        const contentType = String(headers["content-type"] || "");
+        const wantBody = status >= 200 && status < 300 && /html|xml/i.test(contentType);
+
+        if (!wantBody) {
+          res.resume(); // drain and discard
+          return finish(resolve, { status, headers });
+        }
+
+        const declaredLength = Number(headers["content-length"]);
+        if (declaredLength > MAX_BYTES) {
+          req.destroy();
+          return finish(reject, tooLarge());
+        }
+
+        // Cap the DECOMPRESSED size too, so a small compressed bomb can't exhaust memory.
+        const decoder = decoderFor(headers["content-encoding"]);
+        const stream = decoder ? res.pipe(decoder) : res;
+        const chunks = [];
+        let total = 0;
+
+        stream.on("data", (chunk) => {
+          total += chunk.length;
+          if (total > MAX_BYTES) {
+            req.destroy();
+            decoder?.destroy();
+            return finish(reject, tooLarge());
+          }
+          chunks.push(chunk);
+        });
+        stream.on("end", () => finish(resolve, { status, headers, body: Buffer.concat(chunks) }));
+        stream.on("error", (err) => finish(reject, err));
+        res.on("error", (err) => finish(reject, err));
+      }
+    );
+
+    const timer = setTimeout(() => {
+      req.destroy();
+      finish(reject, new Error("The page took too long to respond"));
+    }, FETCH_TIMEOUT_MS);
+
+    req.on("error", (err) => finish(reject, err));
+  });
+}
+
 /**
  * Downloads a page's HTML. Redirects are followed by hand so EVERY hop passes the SSRF guard;
  * otherwise a public URL could redirect the server to an internal address.
@@ -40,44 +138,39 @@ async function fetchHtml(startUrl) {
   let current = startUrl;
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    await assertSafeUrl(current);
+    const url = await assertSafeUrl(current);
 
     let res;
     for (let attempt = 1; ; attempt++) {
       try {
-        res = await fetch(current, {
-          redirect: "manual",
-          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-          headers: { "User-Agent": USER_AGENT, Accept: "text/html,application/xhtml+xml" },
-        });
+        res = await requestOnce(url);
         break;
       } catch (err) {
-        if (attempt >= FETCH_ATTEMPTS) throw err;
+        // A blocked address or an oversized page will not change on retry.
+        if (err.code === "ESSRFBLOCKED") {
+          throw new Error(err.message || "This URL cannot be processed");
+        }
+        if (attempt >= FETCH_ATTEMPTS || err.message === tooLarge().message) throw err;
       }
     }
 
-    const location = res.headers.get("location");
+    const location = res.headers.location;
     if (res.status >= 300 && res.status < 400 && location) {
-      current = new URL(location, current).toString();
+      current = new URL(location, url).toString();
       continue;
     }
 
-    if (!res.ok) throw new Error(`The page responded with HTTP ${res.status}`);
+    if (res.status < 200 || res.status >= 300) throw new Error(`The page responded with HTTP ${res.status}`);
 
-    const contentType = res.headers.get("content-type") || "";
+    const contentType = String(res.headers["content-type"] || "");
     if (!/html|xml/i.test(contentType)) {
       throw new Error(
         `Unsupported content type (${contentType || "unknown"}). Only web pages are supported; upload PDFs and other documents as files.`
       );
     }
 
-    const declaredLength = Number(res.headers.get("content-length"));
-    if (declaredLength > MAX_BYTES) throw new Error("This page is too large to process");
-
-    const buffer = await res.arrayBuffer();
-    if (buffer.byteLength > MAX_BYTES) throw new Error("This page is too large to process");
-
-    const charset = contentType.match(/charset=([^;]+)/i)?.[1]?.trim() || "utf-8";
+    const buffer = res.body;
+    const charset = contentType.match(/charset=([^;]+)/i)?.[1]?.trim().replace(/^"|"$/g, "") || "utf-8";
     let html;
     try {
       html = new TextDecoder(charset).decode(buffer);
